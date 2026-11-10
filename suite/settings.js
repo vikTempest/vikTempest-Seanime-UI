@@ -931,9 +931,14 @@ function vsSetupUI(ctx) {
         }
     })
 
-    // A minute after the start (Seanime loads its own things first), then checked every 6 hours
+    // Opening a page makes Seanime load its own things from AniList: background requests of the
+    // extension wait a few seconds then (see suite/anilist.js)
+    ctx.screen.onNavigate(() => vsAni.touch())
+
+    // A minute after the start (Seanime loads its own things first), then checked every 10 minutes
+    // (it only asks AniList once a day, and waits when AniList is busy or you are clicking around)
     ctx.setTimeout(() => vsWarm(ctx), 60000)
-    ctx.setInterval(() => vsWarm(ctx), 6 * 3600 * 1000)
+    ctx.setInterval(() => vsWarm(ctx), 10 * 60 * 1000)
 
     // No module filled the tray (e.g. Custom Ratings is off): a tray with just the settings button
     if (!vsTrayState.tray) {

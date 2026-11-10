@@ -48,19 +48,20 @@ function init() {
                 // Relations (PREQUEL/SEQUEL) of every id from the shared AniList cache (see
                 // suite/anilist.js). Several rounds, so seasons are also connected through entries
                 // that are not shown here (e.g. Season 1 and 3 in this section, Season 2 elsewhere).
-                // Seanime waits for this hook before it shows the home page, so at most 2 requests
-                // per call: what is missing gets merged the next time the home page loads.
+                // Seanime waits for this hook before it shows the home page and loads its own
+                // things from AniList at the same time, so at most 1 request per call and only for
+                // anime never seen before (old copies are fine, relations rarely change). What is
+                // missing is loaded in the background by the home page and merged next time.
                 const ani = $vsAniLib()
                 const rel = {}
                 let wanted = ids.slice()
-                let requests = 2
+                let requests = 1
                 for (let round = 0; round < 8 && wanted.length; round++) {
-                    const missing = wanted.filter((id) => !rel[id] && !ani.get(id, { full: true }))
+                    const missing = wanted.filter((id) => !rel[id] && !ani.get(id, { full: true, stale: true }))
                     if (missing.length && requests > 0) {
-                        const n = Math.ceil(missing.length / 50)
-                        try { ani.fetch(missing, { maxRequests: requests }) }
+                        requests--
+                        try { ani.fetch(missing, { maxRequests: 1, stale: true, interactive: true }) }
                         catch (err) { console.warn("season-switcher: could not load relations", err) }
-                        requests -= n
                     }
                     wanted.forEach((id) => {
                         if (rel[id]) return
@@ -301,15 +302,19 @@ function init() {
             return v === undefined || v === null ? v : JSON.parse(JSON.stringify(v))
         }
 
-        // One anime with its relations: fresh from the cache, otherwise one request (the anime
-        // and its direct relations come complete). When AniList is busy, an old copy is used.
-        function nodeOf(id) {
+        // One anime with its relations: from the cache, otherwise one request (the anime and its
+        // direct relations come complete). Only the anime whose page is open is renewed when its
+        // copy is old; for the others of the franchise an old copy is fine.
+        function nodeOf(id, renew) {
             let node = ani.get(id, { full: true })
             if (node) return node
-            let err = null
-            try { ani.fetch([id], { deep: true }) } catch (e) { err = e }
+            node = ani.get(id, { full: true, stale: true })
+            if (node && !renew) return node
+            let err = null, done = false
+            try { done = ani.fetch([id], { deep: true, interactive: true }) } catch (e) { err = e }
             node = ani.get(id, { full: true, stale: true })
             if (!node && err) throw err
+            if (!node && !done) throw new Error("429 rate limit: waiting " + Math.ceil(ani.wait({ interactive: true }) / 1000) + " s")
             return node
         }
 
@@ -322,7 +327,7 @@ function init() {
                 const id = queue.shift()
                 if (seen[id]) continue
                 seen[id] = true
-                const node = nodeOf(id)
+                const node = nodeOf(id, id === startId)
                 if (!node || node.missing) continue
                 result.push(node)
                 ;(node.rel || []).forEach((r) => {
@@ -487,9 +492,10 @@ function init() {
         // page), and AniList allows only a few per minute. So the home page asks for at most
         // REL_BATCHES requests at a time and continues a moment later, and waits a minute after
         // AniList said "too many requests".
-        const REL_BATCHES = 2
-        const REL_PAUSE_MS = 2500
-        const relLimit = { incomplete: false }
+        const REL_BATCHES = 1
+        const REL_PAUSE_MS = 5000
+        const REL_MAX_RUNS = 20
+        const relLimit = { incomplete: false, runs: 0 }
 
         // PREQUEL/SEQUEL ids, start date, format, title and cover per id
         function infoOf(e) {
@@ -507,12 +513,12 @@ function init() {
             relLimit.incomplete = false
             let wanted = ids.slice()
             for (let round = 0; round < 8 && wanted.length; round++) {
-                const missing = wanted.filter((id) => !rel[id] && !ani.get(id, { full: true }))
+                const missing = wanted.filter((id) => !rel[id] && !ani.get(id, { full: true, stale: true }))
                 if (missing.length) {
                     if (requests <= 0 || ani.wait() > 0) relLimit.incomplete = true
                     else {
                         try {
-                            if (!ani.fetch(missing, { maxRequests: requests })) relLimit.incomplete = true
+                            if (!ani.fetch(missing, { maxRequests: requests, stale: true })) relLimit.incomplete = true
                         }
                         catch (e) {
                             // e.g. AniList's request limit: use what we have, the rest comes next time
@@ -533,6 +539,14 @@ function init() {
                     if (!rel[other] && next.indexOf(other) === -1) next.push(other)
                 }))
                 wanted = next
+            }
+            // Everything is there: renew a few old copies (one request) when AniList has room
+            if (!relLimit.incomplete && requests > 0 && ani.wait() === 0) {
+                const old = Object.keys(rel).map((k) => parseInt(k, 10)).filter((id) => !ani.get(id, { full: true }))
+                if (old.length) {
+                    try { ani.fetch(old.slice(0, 50), { maxRequests: 1 }) }
+                    catch (e) { console.warn("season-switcher: could not renew relations", e) }
+                }
             }
             return rel
         }
@@ -634,7 +648,8 @@ function init() {
                         rows.again = false
                         scheduleMergeRows()
                     }
-                    else if (relLimit.incomplete) {
+                    else if (relLimit.incomplete && relLimit.runs < REL_MAX_RUNS) {
+                        relLimit.runs++
                         // Not everything loaded yet: continue a little later, so the plugin can
                         // answer clicks in between
                         if (rows.timer) rows.timer()
@@ -1137,6 +1152,7 @@ function init() {
             if (routeToInfoPage(pathname, searchParams, prev)) return
             if (state.pathname !== pathname) {
                 state.pathname = pathname
+                relLimit.runs = 0
                 rows.hidden = {}
                 rows.parents = {}
                 rows.swapped = {}
@@ -1153,8 +1169,10 @@ function init() {
             removeSwitchers()
             if (!id) return
 
-            // Let the page start rendering before the (blocking) AniList request
-            ctx.setTimeout(() => {
+            // Let the page start rendering before the (blocking) AniList request. When AniList's
+            // limit is reached, it tries again by itself as soon as there is room (up to 5 times).
+            let tries = 0
+            const load = () => {
                 if (state.mediaId !== id) return
                 try {
                     const options = buildOptions(loadFranchise(id), id)
@@ -1164,9 +1182,17 @@ function init() {
                 }
                 catch (e) {
                     console.warn("season-switcher: could not load seasons for " + id, e)
-                    checkRateLimit(e)
+                    if (ani.isLimit(e) && tries < 5) {
+                        tries++
+                        const w = ani.wait({ interactive: true })
+                        // Only say something when it takes a while
+                        if (w > 10000) checkRateLimit(e)
+                        ctx.setTimeout(load, Math.max(2000, w + 500))
+                    }
+                    else checkRateLimit(e)
                 }
-            }, 50)
+            }
+            ctx.setTimeout(load, 50)
         }
 
         ctx.dom.onReady(() => {

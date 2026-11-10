@@ -434,7 +434,7 @@ function init() {
             if (!ani) return null
             let node = ani.get(media.id, { full: true })
             if (!node || (node.rel || []).some((r) => r.type === "SEQUEL" && !ani.get(r.id, { stale: true }))) {
-                try { ani.fetch([media.id], { deep: true }) } catch (e) { console.warn("viktempest-ui extras: next season", e) }
+                try { ani.fetch([media.id], { deep: true, interactive: true }) } catch (e) { console.warn("viktempest-ui extras: next season", e) }
                 node = ani.get(media.id, { full: true, stale: true })
             }
             let best = null
@@ -624,6 +624,15 @@ function init() {
             const episodeOf = (e) => (e && e.episode) || {}
             const mediaOf = (ep) => ep.baseAnime || {}
             try {
+                // Several episodes marked within a few seconds: one reload of your list
+                let refreshTimer = null
+                const refreshList = () => {
+                    if (refreshTimer) refreshTimer()
+                    refreshTimer = ctx.setTimeout(() => {
+                        refreshTimer = null
+                        try { $anilist.refreshAnimeCollection() } catch (err) {}
+                    }, 3000)
+                }
                 const watchedItem = ctx.action.newEpisodeGridItemMenuItem({ label: t("menuWatched"), type: tabType })
                 watchedItem.mount()
                 watchedItem.onClick((e) => {
@@ -633,7 +642,7 @@ function init() {
                     if (!media.id || !num) return
                     try {
                         $anilist.updateEntryProgress(media.id, num, media.episodes || undefined)
-                        try { $anilist.refreshAnimeCollection() } catch (err) {}
+                        refreshList()
                         ctx.toast.success(t("menuWatchedDone", num))
                     }
                     catch (err) {

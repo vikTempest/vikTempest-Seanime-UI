@@ -67,7 +67,14 @@ Deine Listen bleiben unverändert: Jede Staffel bleibt auf AniList ein eigener E
 
 Die Erweiterung folgt auf AniList den Verknüpfungen „Prequel“ und „Sequel“ und sortiert alles nach Startdatum. Als Staffel zählen TV-Serien, Kurzserien und ONAs. Filme, OVAs und Specials werden mit durchlaufen (damit ein Film zwischen zwei Staffeln die Kette nicht unterbricht), aber nur angezeigt, wenn du das einschaltest. Gibt es nur eine Staffel, erscheint kein Dropdown.
 
-Die Daten werden 12 Stunden zwischengespeichert, weil AniList nur wenige Anfragen pro Minute erlaubt. Ist das Limit doch einmal erreicht, zeigt Seanime eine kurze Meldung, und die Staffeln kommen etwa eine Minute später.
+### AniList-Limit
+
+AniList erlaubt nur 30 Anfragen pro Minute, und Seanime braucht die meisten davon selbst (vor allem direkt nach dem Öffnen einer Seite). Die Erweiterung hält sich deshalb stark zurück:
+
+- Alle Teile teilen sich einen Speicher, der Neustarts übersteht: fertige Anime einen Monat, laufende drei Tage. Ältere Kopien werden weiter benutzt und nur erneuert, wenn AniList Luft hat.
+- Höchstens 6 eigene Anfragen pro Minute, mit mindestens 5 Sekunden Abstand, und keine Hintergrund-Anfragen in den ersten 8 Sekunden nach dem Öffnen einer Seite.
+- Musste eine Anfrage auf AniList warten oder kam „too many requests“, macht die ganze Erweiterung eine Pause (1 Minute, bei Wiederholung länger, bis 10 Minuten).
+- Das Staffel-Dropdown lädt dann von selbst nach, sobald wieder Platz ist.
 
 ## Extras
 
