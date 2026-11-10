@@ -54,10 +54,12 @@ function init() {
                 if (token) {
                     const variables = { mediaId: e.mediaId, advancedScores: pending.advancedScores }
                     if (pending.scoreRaw !== null && pending.scoreRaw !== undefined) variables.scoreRaw = pending.scoreRaw
-                    $anilist.customQuery({
+                    // Through the extension's shared limit (suite/anilist.js), as a click it only
+                    // waits for AniList's pause
+                    $vsAniLib().request({
                         query: "mutation ($mediaId: Int, $advancedScores: [Float], $scoreRaw: Int) { SaveMediaListEntry(mediaId: $mediaId, advancedScores: $advancedScores, scoreRaw: $scoreRaw) { id } }",
                         variables: variables,
-                    }, token)
+                    }, token, { urgent: true })
                 }
             }
         }
@@ -529,8 +531,8 @@ function init() {
         // AniList only allows a limited number of requests per minute, shared with Seanime itself.
         // So the plugin remembers your account settings and entries for a while instead of asking
         // AniList every time a window opens.
-        const VIEWER_TTL = 30 * 60 * 1000
-        const ENTRY_TTL = 10 * 60 * 1000
+        const VIEWER_TTL = 6 * 3600 * 1000
+        const ENTRY_TTL = 30 * 60 * 1000
 
         function cached(key, ttl) {
             const c = $store.get(key)
@@ -691,14 +693,22 @@ function init() {
             return out
         }
 
+        // Reloading your list costs an AniList request and makes Seanime reload its pages, so
+        // several saves within a few seconds lead to one reload
+        const refreshTimers = {}
         function refreshCollection(type) {
-            try {
-                if (type === "MANGA") $anilist.refreshMangaCollection()
-                else $anilist.refreshAnimeCollection()
-            }
-            catch (e) {
-                console.warn("anilist-custom-ratings: refresh failed", e)
-            }
+            const key = type === "MANGA" ? "MANGA" : "ANIME"
+            if (refreshTimers[key]) refreshTimers[key]()
+            refreshTimers[key] = ctx.setTimeout(() => {
+                refreshTimers[key] = null
+                try {
+                    if (key === "MANGA") $anilist.refreshMangaCollection()
+                    else $anilist.refreshAnimeCollection()
+                }
+                catch (e) {
+                    console.warn("anilist-custom-ratings: refresh failed", e)
+                }
+            }, 3000)
         }
 
         // -----------------------------------------------------------------------------------------

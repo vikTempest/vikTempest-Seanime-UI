@@ -19,6 +19,7 @@ function setup() {
         $anilist: {
             customQuery(body) {
                 env.calls++
+                env.clock += env.slow || 0
                 if (env.fail) throw new Error("429 Too Many Requests")
                 return { Page: { media: body.variables.ids.filter((id) => id < 1000).map((id) => ({
                     id, type: "ANIME", format: "TV", status: id % 2 ? "FINISHED" : "RELEASING", title: { english: "A" + id },
@@ -52,10 +53,10 @@ check("saved entries come back after a restart", () => {
     assert.strictEqual(env.calls, 1)
 })
 
-check("finished anime are kept two weeks, airing ones a day", () => {
+check("finished anime are kept a month, airing ones three days", () => {
     const { ani, env } = setup()
     ani.fetch([1, 2])
-    env.clock += 2 * 24 * 3600 * 1000
+    env.clock += 4 * 24 * 3600 * 1000
     assert.ok(ani.get(1, { full: true }), "finished still fresh")
     assert.ok(!ani.get(2, { full: true }), "airing is old")
     assert.ok(ani.get(2, { full: true, stale: true }), "old copy still usable")
@@ -72,9 +73,9 @@ check("budget per minute", () => {
     const { ani, env } = setup()
     let n = 0
     for (let i = 0; i < 40; i++) {
-        try { ani.request({ variables: { ids: [] } }); n++ } catch (e) {}
+        try { ani.request({ variables: { ids: [] } }, "", { interactive: true }); n++ } catch (e) {}
     }
-    assert.strictEqual(n, 12)
+    assert.strictEqual(n, 6)
     assert.ok(ani.wait() > 0)
     assert.doesNotThrow(() => ani.request({ variables: { ids: [] } }, "", { urgent: true }), "clicks still go through")
     env.clock += 61000
@@ -92,6 +93,58 @@ check("after 429 every part waits", () => {
     assert.strictEqual(env.calls, calls)
     env.clock += 66000
     assert.ok(ani.fetch([1]))
+})
+
+check("background requests keep a gap and wait after you open a page", () => {
+    const { ani, env } = setup()
+    ani.request({ variables: { ids: [] } })
+    assert.throws(() => ani.request({ variables: { ids: [] } }), /429/, "no burst")
+    assert.doesNotThrow(() => ani.request({ variables: { ids: [] } }, "", { interactive: true }), "the dropdown may")
+    env.clock += 5000
+    ani.touch()
+    assert.ok(ani.wait() > 7000, "quiet after opening a page")
+    assert.strictEqual(ani.wait({ interactive: true }), 0)
+    env.clock += 8000
+    assert.strictEqual(ani.wait(), 0)
+})
+
+check("several ids in one fetch: one request per gap", () => {
+    const { ani, env } = setup()
+    const ids = Array.from({ length: 120 }, (_, i) => i + 1)
+    assert.strictEqual(ani.fetch(ids, { maxRequests: 3 }), false)
+    assert.strictEqual(env.calls, 1)
+    env.clock += 5000
+    assert.strictEqual(ani.fetch(ids, { maxRequests: 3 }), false)
+    assert.strictEqual(env.calls, 2)
+})
+
+check("a slow answer (Seanime waited for AniList) pauses everything", () => {
+    const { ani, env } = setup()
+    env.slow = 6000
+    ani.fetch([1])
+    env.slow = 0
+    assert.ok(ani.cooldown() > 50000)
+    assert.strictEqual(ani.fetch([3]), false)
+})
+
+check("repeated 429 makes the pause longer", () => {
+    const { ani, env } = setup()
+    env.fail = true
+    assert.throws(() => ani.fetch([1]))
+    const first = ani.cooldown()
+    env.clock += first + 1000
+    assert.throws(() => ani.fetch([1]))
+    assert.ok(ani.cooldown() > first * 1.8, "doubled")
+})
+
+check("stale: old copies are used, only unknown ids loaded", () => {
+    const { ani, env } = setup()
+    ani.fetch([2])
+    env.clock += 4 * 24 * 3600 * 1000
+    assert.ok(ani.fetch([2], { stale: true }))
+    assert.strictEqual(env.calls, 1)
+    assert.ok(ani.fetch([2, 4], { stale: true }))
+    assert.strictEqual(env.calls, 2)
 })
 
 console.log(failures ? "\n" + failures + " failed" : "\nall passed")

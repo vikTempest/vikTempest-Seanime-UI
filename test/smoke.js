@@ -340,6 +340,9 @@ setImmediate(() => {
                     assert.strictEqual(JSON.stringify(e.libraryCollection.lists[0].entries.map((x) => x.mediaId)), "[1]")
                 })
                 check("AniList data is kept across a restart (no new requests)", () => {
+                    // The hook asks for at most one batch per home page load: the second load
+                    // gets the rest (here the movie between season 1 and 2)
+                    hooks.onAnimeLibraryCollection({ libraryCollection: { lists: [{ entries: [{ mediaId: 3, media: node(3, 0) }, { mediaId: 1, media: node(1, 0) }] }] }, next() {} })
                     const saved = storage.get("vsa:media") || {}
                     assert.ok(saved[1] && saved[2] && saved[3] && saved[1].rel, "saved: " + Object.keys(saved))
                     const settings = store.get("vsuite:settings")
