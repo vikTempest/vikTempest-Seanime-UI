@@ -425,10 +425,10 @@ setImmediate(() => {
                             assert.strictEqual(JSON.stringify(last.params), JSON.stringify({ id: "2", tab: "onlinestream", episode: "6" }))
                         })
                         check("all seasons: off in the settings", () => {
-                            const st = Object.assign({}, store.get("vsuite:settings") || {}, { allSeasons: "no" })
+                            const st = Object.assign({}, store.get("vsuite:settings") || {}, { seasonView: "dropdown" })
                             store.set("vsuite:settings", st)
                             assert.strictEqual(ctx.anime.tab.onEpisodeCollection({ mediaId: 2, episodeCollection: { episodes: [] } }), undefined)
-                            st.allSeasons = "yes"
+                            st.seasonView = "both"
                             store.set("vsuite:settings", st)
                         })
                     }))

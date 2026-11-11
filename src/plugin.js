@@ -508,7 +508,13 @@ function init() {
         const TITLE_CONTAINER = "[data-media-page-header-entry-details-title-container]"
         // Below the buttons, right above the episode list (setting "switcherPlace")
         const PAGE_CONTENT = "[data-anime-entry-page-content]"
-        const belowButtons = () => pref("switcherPlace", "episodes") === "episodes"
+        // How the seasons are shown on an anime page: "both", "list" (one episode list with all
+        // seasons, no dropdown) or "dropdown" (each season on its own, picked in the dropdown)
+        const seasonView = () => {
+            const v = pref("seasonView", "both")
+            return v === "list" || v === "dropdown" ? v : "both"
+        }
+        const belowButtons = () => pref("switcherPlace", "episodes") === "episodes" && state.forceTitle !== state.mediaId
 
         // Where the dropdown goes: { el, how } with how "after" (below the title) or "before"
         // (in front of the first thing above the episode list). Falls back to the title.
@@ -533,8 +539,19 @@ function init() {
         function inject() {
             const mediaId = state.mediaId
             const options = state.options
-            if (!mediaId || !options || options.length < 2 || state.injecting) return
+            if (!mediaId || !options || options.length < 2) return
+            if (seasonView() === "list") {
+                removeSwitchers()
+                return
+            }
+            // The page can be rebuilt while the dropdown is being added (e.g. when Seanime switches
+            // to the episode list): then add it once more afterwards
+            if (state.injecting) {
+                state.injectAgain = true
+                return
+            }
             state.injecting = true
+            state.injectAgain = false
 
             ctx.dom.queryOne(".vtss-switcher")
                 .then((existing) => {
@@ -582,7 +599,33 @@ function init() {
                 .catch((e) => console.warn("season-switcher: could not add the dropdown", e))
                 .then(() => {
                     state.injecting = false
+                    if (state.injectAgain) {
+                        state.injectAgain = false
+                        inject()
+                    }
+                    else checkSwitcher(mediaId)
                 })
+        }
+
+        // Seanime may replace the part above the episode list right after the dropdown went in
+        // (it animates between views). Look again a little later and add it again if it is gone,
+        // a few times; after that it goes below the title, which Seanime doesn't replace.
+        function checkSwitcher(mediaId) {
+            if (state.checkTimer) state.checkTimer()
+            state.checkTimer = ctx.setTimeout(() => {
+                state.checkTimer = null
+                if (state.mediaId !== mediaId || !state.options) return
+                ctx.dom.queryOne(".vtss-switcher").then((el) => {
+                    if (el) {
+                        state.switcherTries = 0
+                        return
+                    }
+                    state.switcherTries = (state.switcherTries || 0) + 1
+                    if (state.switcherTries > 8) return
+                    if (state.switcherTries > 4) state.forceTitle = mediaId
+                    inject()
+                }).catch(() => {})
+            }, 700)
         }
 
         // -----------------------------------------------------------------------------------------
@@ -1041,7 +1084,7 @@ function init() {
         }
 
         // -----------------------------------------------------------------------------------------
-        // All seasons in one episode list (setting "allSeasons")
+        // All seasons in one episode list (setting "seasonView": "list" or "both")
         //
         // The Episodes tab lists the episodes of every season of the series one after the other
         // ("Season 2 · Episode 1" and so on). Each episode keeps its own anime, so a click starts
@@ -1067,7 +1110,7 @@ function init() {
         // Returns the combined collection (a promise), or undefined to keep Seanime's own
         function allSeasonsCollection(mediaId, col) {
             resetMerged()
-            if (pref("allSeasons", "yes") !== "yes" || !mediaId) return undefined
+            if (seasonView() === "dropdown" || !mediaId) return undefined
             let franchise
             try { franchise = loadFranchise(mediaId) }
             catch (e) {
@@ -1574,6 +1617,8 @@ function init() {
             if (id === state.mediaId) return
             state.mediaId = id || 0
             state.options = null
+            state.switcherTries = 0
+            state.forceTitle = 0
             if (merged.mediaId !== state.mediaId) resetMerged()
             removeSwitchers()
             if (!id) return

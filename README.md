@@ -36,7 +36,7 @@ Alle Einstellungen stehen auf einer eigenen Seite. So kommst du hin:
 
 - **Theme:** Aus, Rot, Lila, Blau oder Eigene (Akzent- und Hintergrundfarbe frei wählbar). Wirkt sofort, ohne Speichern.
 - **Allgemein:** Sprache und jeden Teil einzeln an/aus
-- **Season Switcher:** Titel-Sprache, wo das Dropdown steht, alle Staffeln in einer Folgenliste, Serie öffnet deine Staffel, nächste Staffel unter „Continue watching“, Filme/OVAs im Dropdown, Fortschritt im Dropdown, Staffeln zusammenfassen, welche Karte pro Serie, Abzeichen „X Staffeln“, Folgenliste statt Sofort-Stream, Folge anklicken startet Stream
+- **Season Switcher:** Titel-Sprache, Staffeln als Folgenliste, Dropdown oder beides, wo das Dropdown steht, Serie öffnet deine Staffel, nächste Staffel unter „Continue watching“, Filme/OVAs im Dropdown, Fortschritt im Dropdown, Staffeln zusammenfassen, welche Karte pro Serie, Abzeichen „X Staffeln“, Folgenliste statt Sofort-Stream, Folge anklicken startet Stream
 - **Seitenleiste:** einfahren (nur ein schmaler Rand bleibt, mit der Maus fährt sie heraus) und einzelne Einträge ausblenden, z. B. Manga, Torrent-Liste oder die Suche (die gibt es auch oben und mit Strg+K). Wirkt sofort.
 - **AniList Custom Ratings:** Schrittweite der Pfeiltasten
 - **Extras:** Bildschirmschoner an/aus und nach wie vielen Minuten, Hinweis auf neue Staffeln, Filler-Folgen (normal, abdunkeln, ausblenden), Bewerten nach der letzten Folge, danach zur nächsten Staffel, Weiterschauen, nochmal geschaute Anime in „Weiterschauen“, Rechtsklick-Menü, Schnellsuche
@@ -61,7 +61,7 @@ Das gilt auch für die anderen Zeilen der Startseite, z. B. Genre-Zeilen wie „
 
 Die nächste Folge trägt „▶ Weiterschauen“, gesehene Folgen „✓ Gesehen“ und die zuletzt angefangene einen Fortschrittsbalken.
 
-**Alle Staffeln in einer Folgenliste:** Die Folgenliste zeigt alle Staffeln der Serie untereinander, also „Staffel 1 · Episode 1“ bis „Staffel 3 · Episode 12“, egal auf welcher Staffel-Seite du bist. Ein Klick startet die Folge der richtigen Staffel, und AniList zählt sie auch dort. „✓ Gesehen“ kommt für jede Staffel aus deiner Liste, „▶ Weiterschauen“ steht nur in der Staffel, bei der du gerade bist. Ist die Liste lang, blättert Seanime sie in Seiten; die Folge zum Weiterschauen steht dann trotzdem oben unter „Weiterschauen“. Filme und OVAs kommen nur dazu, wenn du sie im Dropdown anzeigen lässt.
+**Alle Staffeln in einer Folgenliste:** Die Folgenliste zeigt alle Staffeln der Serie untereinander, also „Staffel 1 · Episode 1“ bis „Staffel 3 · Episode 12“, egal auf welcher Staffel-Seite du bist. Ein Klick startet die Folge der richtigen Staffel, und AniList zählt sie auch dort. „✓ Gesehen“ kommt für jede Staffel aus deiner Liste, „▶ Weiterschauen“ steht nur in der Staffel, bei der du gerade bist. Ist die Liste lang, blättert Seanime sie in Seiten; die Folge zum Weiterschauen steht dann trotzdem oben unter „Weiterschauen“. Filme und OVAs kommen nur dazu, wenn du sie im Dropdown anzeigen lässt. Unter **Staffeln auf der Anime-Seite** wählst du, ob du die Folgenliste, das Dropdown oder beides willst (Standard: beides). Mit „Dropdown“ hat jede Staffel wieder ihre eigene Folgenliste.
 
 Die Erweiterung ist auf **Online-Streaming** ausgelegt. Willst du Seanime so, wie es ohne diese Optimierung ist (z. B. für Debrid oder Torrent), stell „Anime-Seiten mit Folgenliste öffnen“ und „Folge anklicken startet Online-Stream“ auf „Nein“.
 
