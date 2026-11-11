@@ -5,7 +5,7 @@ Eine Erweiterung für Seanime mit allem drin:
 - **Season Switcher:** Staffeln zusammenfassen, Staffel-Dropdown mit Fortschritt, Folgenliste statt Sofort-Stream
 - **AniList Custom Ratings:** Bewertungskategorien und Custom Lists
 - **Theme:** schwarzer Netflix-Look in Rot, Lila, Blau oder deinen eigenen Farben
-- **Extras:** Bildschirmschoner, Schlaftimer, Schnellsuche (Strg+K), Hinweis auf neue Staffeln, Filler abdunkeln, Rechtsklick auf Folgen, Bewerten nach der letzten Folge, danach direkt zur nächsten Staffel, Weiterschauen mit einem Klick
+- **Extras:** Bildschirmschoner, Schlaftimer, Schnellsuche (Strg+K), Hinweis auf neue Staffeln, Filler abdunkeln, Rechtsklick auf Folgen, Bewerten nach der letzten Folge, danach direkt zur nächsten Staffel, Weiterschauen mit einem Klick, nochmal geschaute Anime in „Weiterschauen“
 - **Seitenleiste:** einfahren lassen und Einträge ausblenden
 
 Sprachen: Deutsch, English, Español, Português, 日本語
@@ -39,7 +39,7 @@ Alle Einstellungen stehen auf einer eigenen Seite. So kommst du hin:
 - **Season Switcher:** Titel-Sprache, Filme/OVAs im Dropdown, Fortschritt im Dropdown, Staffeln zusammenfassen, welche Karte pro Serie, Abzeichen „X Staffeln“, Folgenliste statt Sofort-Stream, Folge anklicken startet Stream
 - **Seitenleiste:** einfahren (nur ein schmaler Rand bleibt, mit der Maus fährt sie heraus) und einzelne Einträge ausblenden, z. B. Manga, Torrent-Liste oder die Suche (die gibt es auch oben und mit Strg+K). Wirkt sofort.
 - **AniList Custom Ratings:** Schrittweite der Pfeiltasten
-- **Extras:** Bildschirmschoner an/aus und nach wie vielen Minuten, Hinweis auf neue Staffeln, Filler-Folgen (normal, abdunkeln, ausblenden), Bewerten nach der letzten Folge, danach zur nächsten Staffel, Weiterschauen, Rechtsklick-Menü, Schnellsuche
+- **Extras:** Bildschirmschoner an/aus und nach wie vielen Minuten, Hinweis auf neue Staffeln, Filler-Folgen (normal, abdunkeln, ausblenden), Bewerten nach der letzten Folge, danach zur nächsten Staffel, Weiterschauen, nochmal geschaute Anime in „Weiterschauen“, Rechtsklick-Menü, Schnellsuche
 
 Die meisten Einstellungen gelten sofort nach dem Speichern, spätestens beim nächsten Seitenwechsel. Nur die mit „nach Neustart“ markierten (Sprache, Teile an/aus, Folgenliste) brauchen einen Neustart von Seanime, weil sich ein Plugin nicht selbst neu laden kann. „Auf Standard zurücksetzen“ stellt alles auf den Anfang.
 
@@ -81,6 +81,8 @@ AniList erlaubt nur 30 Anfragen pro Minute, und Seanime braucht die meisten davo
 **Bildschirmschoner:** Machst du eine Weile nichts (Standard 5 Minuten), zeigt Seanime die Anime aus dem großen Banner der Startseite (gerade beliebt auf AniList) bildschirmfüllend mit Titel, Beschreibung und Uhr. Mit „Ansehen“ öffnest du den gezeigten Anime, mit dem Knopf unten in der Mitte (oder Esc) kommst du zurück. Während ein Video läuft, kommt er nie. Ist AniList nicht erreichbar, zeigt er Anime von deiner Liste.
 
 **Symbol oben:** Neben „Einstellungen öffnen“ und den Custom-Ratings-Infos stehen dort der **Schlaftimer** (15, 30, 60 Minuten oder „Nach dieser Folge“, danach pausiert der Player), **Weiterschauen** (deine drei zuletzt geschauten Anime, ein Klick startet die nächste Folge), die Schnellsuche und die neuen Staffeln.
+
+**Nochmal schauen in „Weiterschauen“:** Schaust du einen Anime nochmal, der auf deiner Liste schon „Completed“ ist, steht er auf der Startseite trotzdem unter „Weiterschauen“, z. B. *Food Wars* Staffel 3 bei Folge 12. Hast du die Folge zu Ende geschaut, steht dort die nächste, sonst dieselbe mit Fortschrittsbalken. Die Erweiterung nimmt dafür Seanimes eigenen Wiedergabe-Verlauf, deine AniList-Liste bleibt komplett unverändert (kein „Rewatching“, kein Fortschritt). Ein Klick öffnet die Folgenliste, oben unter „Weiterschauen“ steht genau diese Folge. Der Anime verschwindet wieder, wenn du die letzte Folge gesehen hast, ihn auf „Watching“ oder „Rewatching“ setzt oder 30 Tage nichts mehr davon geschaut hast. Er steht auch im Symbol oben und in der Schnellsuche. Voraussetzung: In Seanimes Einstellungen ist „Watch continuity“ an (damit merkt sich Seanime, wo du in einer Folge warst).
 
 **Neue Staffeln:** Einmal am Tag schaut die Erweiterung, ob es von Anime, die du gesehen hast oder gerade schaust, eine Fortsetzung gibt, die noch nicht auf deiner Liste ist. Neue Funde meldet sie einmal kurz, die ganze Liste steht im Symbol oben.
 

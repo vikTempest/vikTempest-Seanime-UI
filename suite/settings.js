@@ -268,6 +268,9 @@ const VS_FIELDS = [
             { key: "continueWatching", default: "yes", label: { de: "Weiterschauen mit einem Klick", en: "Continue watching in one click" }, yesNo: true,
               hint: { de: "Im Symbol oben und in der Schnellsuche: deine zuletzt geschauten Anime, ein Klick startet die nächste Folge.",
                       en: "In the icon at the top and in quick search: the anime you watched last, one click starts the next episode." } },
+            { key: "rewatchContinue", default: "yes", label: { de: "Nochmal schauen in „Weiterschauen“", en: "Rewatches in \"Continue watching\"" }, yesNo: true,
+              hint: { de: "Schaust du einen Anime, der auf deiner Liste fertig ist, nochmal, steht er auf der Startseite unter „Weiterschauen“. Nur in Seanime, deine AniList-Liste bleibt unverändert.",
+                      en: "When you watch an anime again that is completed on your list, it shows up under \"Continue watching\" on the home page. Only in Seanime, your AniList list stays as it is." } },
             { key: "episodeMenu", restart: true, default: "yes", label: { de: "Rechtsklick-Menü auf Folgen", en: "Right-click menu on episodes" }, yesNo: true,
               hint: { de: "„Bis hier als gesehen markieren“ und „Online-Stream starten“", en: "\"Mark watched up to here\" and \"Start online stream\"" } },
             { key: "quickSearch", restart: true, default: "yes", label: { de: "Schnellsuche mit Strg+K", en: "Quick search with Ctrl+K" }, yesNo: true,
@@ -290,6 +293,7 @@ const VS_CHANGES = {
         "1.2.1: Seanime hängt nicht mehr nach der Installation (Bildschirmschoner-Erkennung), Absturz beim Symbol oben behoben",
         "1.3.0: Nach der letzten Folge direkt zur nächsten Staffel, Weiterschauen mit einem Klick, Seitenleiste einfahren und Einträge ausblenden, Einstellungen sichern und laden, stabiler",
         "1.4.0: Viel weniger AniList-Anfragen: Staffeldaten werden gespeichert (auch nach einem Neustart), deine Liste kommt einmal am Tag in einer Anfrage, alle Teile teilen sich ein Limit pro Minute und warten nach „zu viele Anfragen“ gemeinsam",
+        "1.6.0: Schaust du einen fertigen Anime nochmal, steht er unter „Weiterschauen“ (nur in Seanime, AniList bleibt unverändert)",
     ],
     en: [
         "Colour schemes: red, purple, blue or your own colours, picked on first start",
@@ -303,6 +307,7 @@ const VS_CHANGES = {
         "1.2.1: Seanime no longer hangs after installing (screensaver activity check), fixed a crash in the tray icon",
         "1.3.0: Straight to the next season after the last episode, continue watching in one click, slide-away sidebar and hidden entries, back up and load settings, more stable",
         "1.4.0: Far fewer AniList requests: season data is saved (also across restarts), your list comes once a day in one request, all parts share a per-minute limit and wait together after \"too many requests\"",
+        "1.6.0: Rewatching a completed anime puts it under \"Continue watching\" (only in Seanime, AniList stays as it is)",
     ],
 }
 
