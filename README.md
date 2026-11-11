@@ -2,7 +2,7 @@
 
 Eine Erweiterung für Seanime mit allem drin:
 
-- **Season Switcher:** Staffeln zusammenfassen, Staffel-Dropdown mit Fortschritt, Folgenliste statt Sofort-Stream
+- **Season Switcher:** Staffeln wie eine Serie: eine Karte pro Serie mit deinem Stand, Staffel-Dropdown über der Folgenliste, alle Staffeln in einer Folgenliste, nächste Staffel unter „Continue watching“
 - **AniList Custom Ratings:** Bewertungskategorien und Custom Lists
 - **Theme:** schwarzer Netflix-Look in Rot, Lila, Blau oder deinen eigenen Farben
 - **Extras:** Bildschirmschoner, Schlaftimer, Schnellsuche (Strg+K), Hinweis auf neue Staffeln, Filler abdunkeln, Rechtsklick auf Folgen, Bewerten nach der letzten Folge, danach direkt zur nächsten Staffel, Weiterschauen mit einem Klick, nochmal geschaute Anime in „Weiterschauen“
@@ -36,7 +36,7 @@ Alle Einstellungen stehen auf einer eigenen Seite. So kommst du hin:
 
 - **Theme:** Aus, Rot, Lila, Blau oder Eigene (Akzent- und Hintergrundfarbe frei wählbar). Wirkt sofort, ohne Speichern.
 - **Allgemein:** Sprache und jeden Teil einzeln an/aus
-- **Season Switcher:** Titel-Sprache, Filme/OVAs im Dropdown, Fortschritt im Dropdown, Staffeln zusammenfassen, welche Karte pro Serie, Abzeichen „X Staffeln“, Folgenliste statt Sofort-Stream, Folge anklicken startet Stream
+- **Season Switcher:** Titel-Sprache, wo das Dropdown steht, alle Staffeln in einer Folgenliste, Serie öffnet deine Staffel, nächste Staffel unter „Continue watching“, Filme/OVAs im Dropdown, Fortschritt im Dropdown, Staffeln zusammenfassen, welche Karte pro Serie, Abzeichen „X Staffeln“, Folgenliste statt Sofort-Stream, Folge anklicken startet Stream
 - **Seitenleiste:** einfahren (nur ein schmaler Rand bleibt, mit der Maus fährt sie heraus) und einzelne Einträge ausblenden, z. B. Manga, Torrent-Liste oder die Suche (die gibt es auch oben und mit Strg+K). Wirkt sofort.
 - **AniList Custom Ratings:** Schrittweite der Pfeiltasten
 - **Extras:** Bildschirmschoner an/aus und nach wie vielen Minuten, Hinweis auf neue Staffeln, Filler-Folgen (normal, abdunkeln, ausblenden), Bewerten nach der letzten Folge, danach zur nächsten Staffel, Weiterschauen, nochmal geschaute Anime in „Weiterschauen“, Rechtsklick-Menü, Schnellsuche
@@ -51,13 +51,17 @@ Unter **Status** siehst du, ob die Erweiterung die Teile von Seanime findet, mit
 
 **Startseite:** Jede Serie erscheint nur noch einmal. Liegen z. B. Staffel 1 und Staffel 2 im selben Bereich (etwa „Currently watching“ oder „Completed“), bleibt nur eine Karte stehen. Bei „Continue watching“ bleibt die früheste Staffel, also die, bei der du gerade bist. Stehen die Staffeln in verschiedenen Bereichen (Staffel 1 bei „Completed“, Staffel 2 bei „Watching“), bleiben beide sichtbar.
 
-Das gilt auch für die anderen Zeilen der Startseite, z. B. Genre-Zeilen wie „Romance“. Die Karte zeigt immer die erste Staffel (Titel, Jahr, Bild), und ein Klick öffnet Staffel 1. Hat eine Serie mehrere Staffeln, steht oben links auf der Karte ein kleines Abzeichen, z. B. „3 Staffeln“.
+Das gilt auch für die anderen Zeilen der Startseite, z. B. Genre-Zeilen wie „Romance“, und für „My lists“. Die Karte zeigt immer die erste Staffel (Titel, Jahr, Bild). Ein Klick öffnet die Staffel, bei der du gerade bist: die, die du schaust, oder die nächste nach der letzten fertigen. Hat eine Serie mehrere Staffeln, steht oben links auf der Karte ein kleines Abzeichen mit deinem Stand, z. B. „3 Staffeln · S2 5/12“ oder „3 Staffeln ✓“, wenn du alle fertig hast.
 
-**Anime-Seite:** Unter dem Titel steht ein Dropdown **„Staffel“** mit allen Staffeln der Reihe. Wählst du eine aus, springt Seanime auf ihre Seite. Im Dropdown siehst du deinen Stand: „✓“ vor fertigen Staffeln, „5/12“ hinter angefangenen und „nicht auf deiner Liste“ bei Staffeln, die du noch nicht eingetragen hast.
+**Nächste Staffel unter „Continue watching“:** Hast du eine Staffel in den letzten 60 Tagen fertig geschaut und die nächste ist schon draußen, aber noch nicht angefangen, steht ihre erste Folge unter „Continue watching“. Sobald du sie schaust, trägt Seanime sie wie gewohnt als „Watching“ ein.
+
+**Anime-Seite:** Unter den Knöpfen, direkt über der Folgenliste, steht ein Dropdown **„Staffel“** mit allen Staffeln der Reihe (in den Einstellungen auch wieder unter dem Titel möglich). Wählst du eine aus, springt Seanime auf ihre Seite. Im Dropdown siehst du deinen Stand: „✓“ vor fertigen Staffeln, „5/12“ hinter angefangenen und „nicht auf deiner Liste“ bei Staffeln, die du noch nicht eingetragen hast.
 
 **Folgenliste:** Klickst du auf eine Serie, öffnet sich die Seite mit Infos und allen Folgen, statt sofort einen Stream zu laden. Über der Liste steht unter „Weiterschauen“ die Folge, bei der du aufgehört hast. Erst ein Klick auf eine Folge startet den Online-Stream genau dieser Folge. Dafür lädt die Seite einmal kurz neu, weil Seanime die Ansicht nur beim Öffnen einer Seite wählt. Über den Knopf „Folgenübersicht“ beim Stream kommst du zurück zur Folgenliste.
 
 Die nächste Folge trägt „▶ Weiterschauen“, gesehene Folgen „✓ Gesehen“ und die zuletzt angefangene einen Fortschrittsbalken.
+
+**Alle Staffeln in einer Folgenliste:** Die Folgenliste zeigt alle Staffeln der Serie untereinander, also „Staffel 1 · Episode 1“ bis „Staffel 3 · Episode 12“, egal auf welcher Staffel-Seite du bist. Ein Klick startet die Folge der richtigen Staffel, und AniList zählt sie auch dort. „✓ Gesehen“ kommt für jede Staffel aus deiner Liste, „▶ Weiterschauen“ steht nur in der Staffel, bei der du gerade bist. Ist die Liste lang, blättert Seanime sie in Seiten; die Folge zum Weiterschauen steht dann trotzdem oben unter „Weiterschauen“. Filme und OVAs kommen nur dazu, wenn du sie im Dropdown anzeigen lässt.
 
 Die Erweiterung ist auf **Online-Streaming** ausgelegt. Willst du Seanime so, wie es ohne diese Optimierung ist (z. B. für Debrid oder Torrent), stell „Anime-Seiten mit Folgenliste öffnen“ und „Folge anklicken startet Online-Stream“ auf „Nein“.
 
