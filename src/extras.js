@@ -14,6 +14,54 @@
 // and vsShare from suite/settings.js when they are there.
 
 function init() {
+
+    // ---------------------------------------------------------------------------------------------
+    // Rewatch in "Continue watching" (hook part).
+    //
+    // Seanime only puts anime that are "Watching" or "Rewatching" on your list into "Continue
+    // watching". When you watch an anime that is "Completed" again, Seanime still remembers where
+    // you are (its watch history), but the home page doesn't show it. The UI part below turns that
+    // watch history into ready episodes ($store "vsx:rewatch"), and this hook adds them to the
+    // row. Nothing is sent to AniList. Hooks run from their own source text, so everything they
+    // need is inside the function.
+    function vsxRewatchHook(e) {
+        try {
+            let on = "yes"
+            try { on = $getUserPreference("rewatchContinue") || "yes" } catch (err) {}
+            const lc = e.libraryCollection
+            if (on === "yes" && lc) {
+                let saved = null
+                try { saved = $store.get("vsx:rewatch") } catch (err) {}
+                if (!saved) {
+                    try { saved = $storage.get("vsx:rewatch") } catch (err) {}
+                }
+                const items = (saved && saved.items) || []
+                if (items.length) {
+                    const list = []
+                    const have = {}
+                    ;(lc.continueWatchingList || []).forEach((ep) => {
+                        list.push(ep)
+                        if (ep && ep.baseAnime && ep.baseAnime.id) have[ep.baseAnime.id] = true
+                    })
+                    let added = 0
+                    items.forEach((it) => {
+                        if (!it || !it.mediaId || have[it.mediaId] || !it.episode || !it.episode.baseAnime) return
+                        have[it.mediaId] = true
+                        // A plain copy, so Seanime gets ordinary objects for its episode type
+                        list.push(JSON.parse(JSON.stringify(it.episode)))
+                        added++
+                    })
+                    if (added) lc.continueWatchingList = list
+                }
+            }
+        }
+        catch (err) {
+            console.error("viktempest-ui extras: rewatch in continue watching failed", err)
+        }
+        e.next()
+    }
+    $app.onAnimeLibraryCollection(vsxRewatchHook)
+
     $ui.register((ctx) => {
         const I18N = {
             de: {
@@ -505,10 +553,17 @@ function init() {
         // Continue watching: the anime you watched last, a click starts the next episode
 
         // Your list from Seanime's cache, newest first. Only anime with an episode that is out.
+        // Rewatches of finished anime (see below) are in it too.
         function continueList(max) {
             const out = []
+            const rwIds = {}
+            rewatchItems().forEach((it) => {
+                rwIds[it.mediaId] = true
+                out.push({ id: it.mediaId, title: it.title, ep: it.ep, time: Math.round(it.time / 1000) })
+            })
             listEntries().forEach((e) => {
                 if (e.status !== "CURRENT" && e.status !== "REPEATING") return
+                if (rwIds[e.media.id]) return
                 const m = e.media
                 const next = (e.progress || 0) + 1
                 if (m.episodes && next > m.episodes) return
@@ -521,6 +576,124 @@ function init() {
         }
         function playNext(item) {
             ctx.screen.navigateTo("/entry", { id: String(item.id), tab: "onlinestream", episode: String(item.ep) })
+        }
+
+        // -----------------------------------------------------------------------------------------
+        // Rewatch in "Continue watching" (UI part, the hook is at the top of this file)
+        //
+        // Seanime's watch history knows the last episode of every anime you played and how far
+        // you got, also for anime that are "Completed" on your list. From that this makes the
+        // episode to continue with (the same one if you stopped in it, otherwise the next one) and
+        // keeps it in $store/$storage "vsx:rewatch" for the hook. Only on this device, AniList
+        // isn't told anything. An anime drops out when you finished its last episode, when it is
+        // "Watching"/"Rewatching" again (then Seanime shows it itself) or after RW_DAYS days.
+
+        const RW_KEY = "vsx:rewatch"
+        const RW_DAYS = 30
+        const RW_MAX = 10
+        // Seanime counts an episode as watched from 80 %, its own resume point stops at 90 %
+        const RW_DONE = 0.8
+        const LIBRARY_QUERY = "ANIME-COLLECTION-get-library-collection"
+        const rw = { sig: null, busy: false, episodes: {} }
+        try {
+            const saved = $storage.get(RW_KEY)
+            if (saved && saved.items) {
+                rw.sig = saved.sig || null
+                saved.items.forEach((it) => { if (it && it.episode) rw.episodes[it.mediaId + ":" + it.ep] = it.episode })
+                $store.set(RW_KEY, saved)
+            }
+        }
+        catch (e) {}
+
+        function rewatchItems() {
+            if (pref("rewatchContinue", "yes") !== "yes") return []
+            let saved = null
+            try { saved = $store.get(RW_KEY) } catch (e) {}
+            return ((saved && saved.items) || []).filter((it) => it && it.mediaId)
+        }
+
+        // Anime on your list as "Completed" that you played in the last RW_DAYS days
+        function rewatchCandidates() {
+            let history = null
+            try { history = plain(ctx.continuity.getWatchHistory()) } catch (e) {}
+            if (!history) return []
+            const byId = {}
+            listEntries().forEach((e) => { byId[e.media.id] = e })
+            const now = Date.now()
+            const out = []
+            Object.keys(history).forEach((k) => {
+                const h = history[k]
+                if (!h || !h.mediaId || !h.episodeNumber) return
+                const entry = byId[h.mediaId]
+                if (!entry || entry.status !== "COMPLETED") return
+                const time = Date.parse(h.timeUpdated || h.timeAdded || "") || 0
+                if (!time || now - time > RW_DAYS * 86400000) return
+                const m = entry.media
+                const done = h.duration > 0 && h.currentTime / h.duration >= RW_DONE
+                const ep = done ? h.episodeNumber + 1 : h.episodeNumber
+                const total = m.episodes || (m.nextAiringEpisode && m.nextAiringEpisode.episode ? m.nextAiringEpisode.episode - 1 : 0)
+                if (total && ep > total) return
+                out.push({ mediaId: h.mediaId, ep: ep, time: time, title: titleOf(m), media: m })
+            })
+            out.sort((a, b) => b.time - a.time)
+            return out.slice(0, RW_MAX)
+        }
+
+        // The episode as Seanime builds it for its own lists (title, picture), or a simple one
+        function rewatchEpisode(c) {
+            const key = c.mediaId + ":" + c.ep
+            if (rw.episodes[key]) return Promise.resolve(rw.episodes[key])
+            const simple = () => {
+                const m = c.media || {}
+                const img = m.bannerImage || (m.coverImage && (m.coverImage.extraLarge || m.coverImage.large)) || ""
+                return {
+                    type: "main", displayTitle: "Episode " + c.ep, episodeTitle: c.title || "", episodeNumber: c.ep,
+                    absoluteEpisodeNumber: c.ep, progressNumber: c.ep, isDownloaded: false, isInvalid: false,
+                    episodeMetadata: { image: img, hasImage: !!img }, baseAnime: m, _isNakamaEpisode: false,
+                }
+            }
+            const keep = (ep) => {
+                if (!ep.baseAnime) ep.baseAnime = c.media
+                // Seanime hides episodes without isAdult === false when adult content is off
+                if (ep.baseAnime && ep.baseAnime.isAdult === undefined) ep.baseAnime.isAdult = false
+                delete ep.localFile
+                rw.episodes[key] = ep
+                return ep
+            }
+            let p = null
+            try { p = ctx.anime.getEpisodeCollection(c.mediaId) } catch (e) {}
+            if (!p || typeof p.then !== "function") return Promise.resolve(keep(simple()))
+            return p.then((col) => {
+                const eps = ((plain(col) || {}).episodes) || []
+                const found = eps.filter((ep) => ep && ep.episodeNumber === c.ep)[0]
+                return keep(found || simple())
+            }, () => keep(simple()))
+        }
+
+        function rewatchSync() {
+            if (rw.busy) return
+            const cands = pref("rewatchContinue", "yes") === "yes" ? rewatchCandidates() : []
+            const sig = cands.map((c) => c.mediaId + ":" + c.ep).join(",")
+            if (sig === rw.sig) return
+            rw.busy = true
+            Promise.all(cands.map((c) => rewatchEpisode(c).then((ep) => ({ mediaId: c.mediaId, ep: c.ep, time: c.time, title: c.title, episode: ep }))))
+                .then((items) => {
+                    const data = { sig: sig, items: items }
+                    try { $store.set(RW_KEY, data) } catch (e) {}
+                    try { $storage.set(RW_KEY, data) } catch (e) {}
+                    rw.sig = sig
+                    rw.busy = false
+                    // Old episodes that aren't needed anymore
+                    const keepKeys = {}
+                    items.forEach((it) => { keepKeys[it.mediaId + ":" + it.ep] = true })
+                    Object.keys(rw.episodes).forEach((k) => { if (!keepKeys[k]) delete rw.episodes[k] })
+                    // The home page loads its rows again
+                    try { $app.invalidateClientQuery([LIBRARY_QUERY]) } catch (e) {}
+                    trayUpdate()
+                }, (e) => {
+                    rw.busy = false
+                    console.warn("viktempest-ui extras: rewatch", e)
+                })
         }
 
         // -----------------------------------------------------------------------------------------
@@ -795,7 +968,10 @@ function init() {
             sleep.check()
             saverCheck()
             if (sleep.until) trayUpdate()
+            rewatchSync()
         }, 30000)
+        ctx.screen.onNavigate(() => rewatchSync())
+        ctx.setTimeout(() => rewatchSync(), 5000)
         // New seasons: whenever the list with relations was loaded (once a day)
         if (share.onWarm) share.onWarm.push((col) => checkNewSeasons(col))
     })

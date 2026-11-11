@@ -1003,6 +1003,14 @@ function init() {
                 }
             }
             catch (e) {}
+            // Rewatch of a finished anime (Extras, "vsx:rewatch"): the episode after the one you
+            // finished last, which your list doesn't know
+            try {
+                const saved = $store.get("vsx:rewatch")
+                const it = ((saved && saved.items) || []).filter((x) => x && x.mediaId === mediaId)[0]
+                if (it && it.ep) return Promise.resolve(it.ep)
+            }
+            catch (e) {}
             return listProgress(mediaId).then((progress) => progress + 1)
         }
 

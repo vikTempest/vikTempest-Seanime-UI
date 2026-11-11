@@ -37,6 +37,8 @@ const navigateCb = (e) => navigateCbs.forEach((cb) => cb(e))
 let mainTabReady = []
 let uiFn = null
 
+let watchHistory = {}
+let episodeCollectionCalls = 0
 let elementId = 0
 function makeElement(tag, attrs) {
     const el = {
@@ -124,13 +126,19 @@ const ctx = {
         webviews.push(wv)
         return wv
     },
-    anime: { registerEntryEpisodeTab(o) { ctx.anime.tab = o; return { name: o.name, getIsOpen: () => ({ get: () => false }) } } },
+    anime: {
+        registerEntryEpisodeTab(o) { ctx.anime.tab = o; return { name: o.name, getIsOpen: () => ({ get: () => false }) } },
+        getEpisodeCollection(id) {
+            episodeCollectionCalls++
+            return Promise.resolve({ episodes: [3, 4, 5].map((n) => ({ type: "main", displayTitle: "Episode " + n, episodeTitle: "Title " + n, episodeNumber: n, progressNumber: n, baseAnime: { id: id, isAdult: false } })) })
+        },
+    },
     appSettings: {
         values: { "library.defaultPlaybackSource": "" },
         get(path, fallback) { return Promise.resolve(this.values[path] !== undefined ? this.values[path] : fallback) },
         set(path, value) { this.values[path] = value; return Promise.resolve({}) },
     },
-    continuity: { getWatchHistoryItem() { return null } },
+    continuity: { getWatchHistoryItem() { return null }, getWatchHistory() { return watchHistory } },
     eventHandler(key, fn) { eventHandlers[key] = fn; return key },
     fieldRef() { return { current: "", setValue() {}, onValueChange() {} } },
     newTray(options) {
@@ -190,7 +198,7 @@ const $anilist = {
     },
     getAnimeCollection() {
         return { MediaListCollection: { lists: [{ entries: [
-            { status: "COMPLETED", progress: 12, media: { id: 1, title: { english: "Show", romaji: "Shou" }, bannerImage: "b1.jpg" } },
+            { status: "COMPLETED", progress: 12, media: { id: 1, episodes: 12, title: { english: "Show", romaji: "Shou" }, bannerImage: "b1.jpg" } },
             { status: "CURRENT", progress: 5, updatedAt: 200, media: { id: 2, episodes: 12, title: { english: "Show Season 2" }, bannerImage: "b2.jpg" } },
             { status: "CURRENT", progress: 3, updatedAt: 100, media: { id: 60, episodes: 0, status: "RELEASING", nextAiringEpisode: { episode: 4 }, title: { english: "Airing Show" } } },
         ] }] } }
@@ -231,7 +239,12 @@ function isolated(fn) {
     return vm.runInContext("(" + fn.toString() + ")", bindings())
 }
 const sandbox = bindings()
-sandbox.$app = new Proxy({}, { get: (_, k) => (fn) => { hooks[k] = isolated(fn) } })
+// Several hooks for the same event run one after the other, like in Seanime
+const hookLists = {}
+sandbox.$app = new Proxy({}, { get: (_, k) => (fn) => {
+    (hookLists[k] = hookLists[k] || []).push(isolated(fn))
+    hooks[k] = (e) => hookLists[k].forEach((h) => h(e))
+} })
 sandbox.$ui = { register: (fn) => { uiFn = isolated(fn) } }
 
 // ---- Tests -----------------------------------------------------------------------------------
@@ -565,9 +578,50 @@ setImmediate(() => {
                     }))
                     // after the checks that wait for the page (filler style)
                     setImmediate(() => setImmediate(() => {
+                        // Rewatch: "Show" (1) is completed on the list, you just finished episode 3 again
+                        watchHistory = { 1: { kind: "onlinestream", mediaId: 1, episodeNumber: 3, currentTime: 1400, duration: 1440, timeUpdated: new Date(Date.now() + clockOffset).toISOString() } }
+                        navigateCb({ pathname: "/", searchParams: {} })
+                    }))
+                    setImmediate(() => setImmediate(() => setImmediate(() => {
+                        check("rewatch of a completed anime goes into continue watching", () => {
+                            const e = { libraryCollection: { continueWatchingList: [{ episodeNumber: 6, baseAnime: { id: 2 } }] }, next() {} }
+                            hooks.onAnimeLibraryCollection(e)
+                            const list = e.libraryCollection.continueWatchingList
+                            assert.strictEqual(list.length, 2, JSON.stringify(list))
+                            assert.strictEqual(list[1].baseAnime.id, 1)
+                            assert.strictEqual(list[1].episodeNumber, 4, "the episode after the finished one")
+                            assert.strictEqual(list[1].displayTitle, "Episode 4")
+                        })
+                        check("rewatch: no second episode collection while nothing changed", () => {
+                            const before = episodeCollectionCalls
+                            navigateCb({ pathname: "/", searchParams: {} })
+                            assert.strictEqual(episodeCollectionCalls, before)
+                        })
+                        check("rewatch: off in the settings", () => {
+                            const s = Object.assign({}, store.get("vsuite:settings") || {}, { rewatchContinue: "no" })
+                            store.set("vsuite:settings", s)
+                            const e = { libraryCollection: { continueWatchingList: [] }, next() {} }
+                            hooks.onAnimeLibraryCollection(e)
+                            assert.strictEqual(e.libraryCollection.continueWatchingList.length, 0)
+                            s.rewatchContinue = "yes"
+                            store.set("vsuite:settings", s)
+                        })
+                        check("rewatch: last episode finished, gone again", () => {
+                            watchHistory[1].episodeNumber = 12
+                            navigateCb({ pathname: "/", searchParams: {} })
+                        })
+                    })))
+                    setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => {
+                        check("rewatch: nothing left after the last episode", () => {
+                            const e = { libraryCollection: { continueWatchingList: [] }, next() {} }
+                            hooks.onAnimeLibraryCollection(e)
+                            assert.strictEqual(e.libraryCollection.continueWatchingList.length, 0)
+                        })
+                    })))))
+                    setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => {
                         console.log(failures ? "\n" + failures + " failed" : "\nall passed")
                         process.exitCode = failures ? 1 : 0
-                    }))
+                    }))))))
                 }))
             })
         })
