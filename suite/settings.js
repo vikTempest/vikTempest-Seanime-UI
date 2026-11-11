@@ -213,8 +213,8 @@ const VS_FIELDS = [
         section: "layout", fields: [
             { key: "sidebarAutoHide", live: true, default: "no", yesNo: true,
               label: { de: "Seitenleiste einfahren", en: "Slide the sidebar away" },
-              hint: { de: "Die Leiste links verschwindet bis auf einen schmalen Rand und fährt heraus, wenn die Maus an den Rand kommt. Mehr Platz für Bilder und Folgen.",
-                      en: "The bar on the left hides except for a thin edge and slides out when the mouse reaches the edge. More room for covers and episodes." } },
+              hint: { de: "Die Leiste links verschwindet bis auf einen schmalen Rand und fährt heraus, wenn die Maus an den Rand kommt. Mehr Platz für Bilder und Folgen. Auf „Nein“ bleibt die Leiste immer draußen.",
+                      en: "The bar on the left hides except for a thin edge and slides out when the mouse reaches the edge. More room for covers and episodes. Set to \"No\" to keep the bar out all the time." } },
             { key: "sidebarHide", live: true, default: "", multi: true,
               label: { de: "Einträge in der Seitenleiste ausblenden", en: "Hide sidebar entries" },
               options: [["schedule", { de: "Zeitplan", en: "Schedule" }], ["manga", "Manga"], ["lists", { de: "Listen", en: "Lists" }],
