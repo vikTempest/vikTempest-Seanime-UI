@@ -936,6 +936,16 @@ function init() {
             " box-shadow: inset 0 0 0 1px rgb(var(--color-brand-500) / .7); }" +
             " .vtss-continue-label { font-size: 1.15rem; font-weight: 600; margin: 0 0 .75rem; }" +
             " .vtss-continue-item { cursor: pointer; }" +
+            // Season headings in the combined episode list: across the whole grid, with a line
+            " .vtss-season-head { grid-column: 1 / -1; display: flex; align-items: center; gap: .75rem; flex-wrap: wrap;" +
+            " margin: 2rem 0 .5rem; padding: .7rem 1rem; border-radius: .6rem; border-left: 4px solid rgb(var(--color-brand-500));" +
+            " background: linear-gradient(90deg, rgb(var(--color-brand-500) / .18), rgba(255,255,255,.03) 60%, transparent); }" +
+            " .vtss-season-head:first-child { margin-top: 0; }" +
+            " .vtss-season-num { font-size: 1.35rem; font-weight: 800; letter-spacing: .01em; }" +
+            " .vtss-season-title { font-size: 1rem; color: var(--muted, #a1a1aa); font-weight: 600; }" +
+            " .vtss-season-state { margin-left: auto; padding: .15rem .6rem; border-radius: 9999px; background: rgba(0,0,0,.45);" +
+            " font-size: .85rem; font-weight: 700; }" +
+            " .vtss-season-here .vtss-season-num::after { content: \" •\"; color: rgb(var(--color-brand-500)); }" +
             " .vtss-continue-simple { display: flex; align-items: center; gap: 1rem; cursor: pointer; max-width: 40rem; }" +
             " .vtss-continue-simple img { width: 12rem; aspect-ratio: 16/9; object-fit: cover; border-radius: var(--radius-md, .5rem); flex: none; }" +
             " .vtss-continue-title { font-weight: 600; font-size: 1.05rem; }" +
@@ -1092,7 +1102,7 @@ function init() {
         // watched from the progress of the anime whose page is open, so the episodes of the other
         // seasons get their marks from your list (see markEpisode).
 
-        const merged = { mediaId: 0, list: [], episodes: {}, next: null, pageNext: 0, time: 0 }
+        const merged = { mediaId: 0, list: [], episodes: {}, next: null, pageNext: 0, time: 0, heads: {} }
 
         function resetMerged() {
             merged.mediaId = 0
@@ -1101,6 +1111,7 @@ function init() {
             merged.next = null
             merged.pageNext = 0
             merged.time = 0
+            merged.heads = {}
         }
 
         function partLabel(node, k) {
@@ -1161,6 +1172,15 @@ function init() {
                         const img = (ep.episodeMetadata && ep.episodeMetadata.image) || (copy.baseAnime && copy.baseAnime.bannerImage) || ""
                         merged.episodes[id + ":" + ep.episodeNumber] = { image: img, title: copy.displayTitle, episodeTitle: ep.episodeTitle || "" }
                         list.push({ id: id, ep: ep.episodeNumber })
+                        // A heading in front of the first episode of every season
+                        if (!shown[id]) {
+                            const total = p.node.episodes || (e && e.episodes) || 0
+                            let mark = ""
+                            if (e && e.status === "COMPLETED") mark = "✓"
+                            else if (e && (e.progress || 0) > 0) mark = e.progress + "/" + (total || "?")
+                            else if (!e) mark = t("notOnList")
+                            merged.heads[id] = { ep: ep.episodeNumber, label: p.label, title: titleOf(p.node), state: mark }
+                        }
                         shown[id] = true
                         episodes.push(copy)
                     })
@@ -1319,6 +1339,39 @@ function init() {
             }
             catch (e) {}
             return listProgress(mediaId).then((progress) => progress + 1)
+        }
+
+        // Season headings in the combined list. Seanime's list shows pages of 24 and rebuilds them
+        // when you turn the page, so the headings are placed anew each time.
+        const heads = { timer: null }
+        function scheduleHeads() {
+            if (heads.timer) heads.timer()
+            heads.timer = ctx.setTimeout(() => {
+                heads.timer = null
+                renderHeads()
+            }, 250)
+        }
+        function renderHeads() {
+            const pageId = state.mediaId
+            const on = merged.mediaId && merged.mediaId === pageId
+            ctx.dom.query(".vtss-season-head").then((old) => {
+                ;(old || []).forEach((el) => el.remove())
+                if (!on) return
+                return Promise.all(Object.keys(merged.heads).map((id) => {
+                    const h = merged.heads[id]
+                    return ctx.dom.queryOne(TAB_EPISODE + "[data-media-id=\"" + id + "\"][data-episode-number=\"" + h.ep + "\"]").then((item) => {
+                        if (!item || state.mediaId !== pageId) return
+                        return ctx.dom.createElement("div").then((head) => {
+                            head.setAttribute("class", "vtss-season-head" + (String(id) === String(pageId) ? " vtss-season-here" : ""))
+                            head.setInnerHTML(
+                                "<span class=\"vtss-season-num\">" + escapeHtml(h.label) + "</span>" +
+                                "<span class=\"vtss-season-title\">" + escapeHtml(h.title) + "</span>" +
+                                (h.state ? "<span class=\"vtss-season-state\">" + escapeHtml(h.state) + "</span>" : ""))
+                            item.before(head)
+                        })
+                    })
+                }))
+            }).catch((e) => console.warn("season-switcher: season headings", e))
         }
 
         function removeContinue() {
@@ -1671,7 +1724,10 @@ function init() {
             ctx.dom.observe(TAB_EPISODE, (elements) => {
                 if (elements && elements.length) health("episodes")
                 ;(elements || []).forEach(markEpisode)
-                if (elements && elements.length) scheduleContinue()
+                if (elements && elements.length) {
+                    scheduleContinue()
+                    scheduleHeads()
+                }
             })
             ctx.dom.observe(ONLINE_VIEW, (elements) => {
                 if (elements && elements.length) {

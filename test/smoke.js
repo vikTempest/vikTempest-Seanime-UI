@@ -670,6 +670,7 @@ setImmediate(() => {
                         })
                     })))))
                     const belowCreated = []
+                    const headed = []
                     setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => {
                         check("dropdown below the buttons, above the episode list", () => {
                             const first = makeElement("div")
@@ -688,6 +689,26 @@ setImmediate(() => {
                             assert.ok(/vtss-below/.test(wrap.attributes.class))
                             assert.strictEqual(wrap.attributes["data-place"], "episodes")
                         })
+                        check("all seasons: heading in front of each season", () => {
+                            const own = { episodes: [1, 2].map((n) => ({ type: "main", displayTitle: "Episode " + n, episodeNumber: n, progressNumber: n, baseAnime: { id: 2, isAdult: false } })) }
+                            ctx.anime.tab.onEpisodeCollection({ mediaId: 2, episodeCollection: own }).then(() => {
+                                const TAB_EP = "[data-anime-entry-page-plugin-episode-tab-view] [data-episode-grid-item][data-episode-number]"
+                                const s1 = makeElement("div", { "data-media-id": "1", "data-episode-number": "3", "data-is-watched": "true" })
+                                const s3 = makeElement("div", { "data-media-id": "3", "data-episode-number": "3", "data-is-watched": "false" })
+                                s1.before = (c) => headed.push(c)
+                                s3.before = (c) => headed.push(c)
+                                domElements[TAB_EP + "[data-media-id=\"1\"][data-episode-number=\"3\"]"] = s1
+                                domElements[TAB_EP + "[data-media-id=\"3\"][data-episode-number=\"3\"]"] = s3
+                                observers.find((o) => o.sel === TAB_EP).cb([s1, s3])
+                            })
+                        })
+                        setTimeout(() => check("all seasons: headings say season, title and your progress", () => {
+                            const html = headed.map((h) => h.html).join(" | ")
+                            assert.ok(headed.length >= 2, html)
+                            assert.ok(/Staffel 1<\/span><span class="vtss-season-title">Show<\/span><span class="vtss-season-state">✓/.test(html), html)
+                            // Season 3 is completed on the list in this part of the test (rewatch phase)
+                            assert.ok(/Staffel 3<\/span><span class="vtss-season-title">Show Season 3<\/span><span class="vtss-season-state">✓/.test(html), html)
+                        }), 20)
                     }))))))))
                     setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => {
                         check("next season: finished season, sequel out and not started", () => {
