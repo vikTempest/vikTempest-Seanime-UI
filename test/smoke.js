@@ -200,6 +200,7 @@ const $anilist = {
         return { MediaListCollection: { lists: [{ entries: [
             { status: "COMPLETED", progress: 12, media: { id: 1, episodes: 12, title: { english: "Show", romaji: "Shou" }, bannerImage: "b1.jpg" } },
             { status: "CURRENT", progress: 5, updatedAt: 200, media: { id: 2, episodes: 12, title: { english: "Show Season 2" }, bannerImage: "b2.jpg" } },
+            { status: "COMPLETED", progress: 12, updatedAt: Math.floor(Date.now() / 1000), media: { id: 80, episodes: 12, title: { english: "Done Show" } } },
             { status: "CURRENT", progress: 3, updatedAt: 100, media: { id: 60, episodes: 0, status: "RELEASING", nextAiringEpisode: { episode: 4 }, title: { english: "Airing Show" } } },
         ] }] } }
     },
@@ -389,6 +390,46 @@ setImmediate(() => {
                         assert.strictEqual(last.params.tab, "onlinestream")
                         assert.strictEqual(last.params.episode, "4")
                     })
+                    let mergedCol = null
+                    check("all seasons: one episode list is built", () => {
+                        const own = { episodes: [1, 2, 3, 4, 5, 6, 7].map((n) => ({ type: "main", displayTitle: "Episode " + n, episodeNumber: n, progressNumber: n, baseAnime: { id: 2, isAdult: false } })) }
+                        const r = ctx.anime.tab.onEpisodeCollection({ mediaId: 2, episodeCollection: own })
+                        assert.ok(r && typeof r.then === "function", "expected a promise")
+                        r.then((c) => { mergedCol = c })
+                    })
+                    setImmediate(() => setImmediate(() => {
+                        check("all seasons: seasons in order, movie left out, marks from your list", () => {
+                            assert.ok(mergedCol, "no list")
+                            const eps = mergedCol.episodes
+                            assert.strictEqual(eps.length, 13, eps.map((e) => e.displayTitle).join(", "))
+                            assert.strictEqual(eps[0].displayTitle, "Staffel 1 · Episode 3")
+                            assert.strictEqual(eps[3].displayTitle, "Staffel 2 · Episode 1")
+                            assert.strictEqual(eps[12].displayTitle, "Staffel 3 · Episode 5")
+                            assert.ok(!eps.some((e) => e.baseAnime.id === 9), "movie should not be in the list")
+                            // Season 1 is completed, season 3 not on the list, season 2 is this page
+                            assert.strictEqual(eps[0].progressNumber, 0)
+                            assert.strictEqual(eps[12].progressNumber, 100000)
+                            assert.strictEqual(eps[3].progressNumber, 1)
+                        })
+                        check("all seasons: a click plays the episode of its own season", () => {
+                            ctx.anime.tab.onSelectEpisode({ mediaId: 2, episodeNumber: 4, episode: { episodeNumber: 4, baseAnime: { id: 3 } } })
+                            const last = navigations[navigations.length - 1]
+                            assert.strictEqual(JSON.stringify(last.params), JSON.stringify({ id: "3", tab: "onlinestream", episode: "4" }))
+                        })
+                        check("all seasons: Seanime's play-next right after opening plays this page's next episode", () => {
+                            // Position 5 (progress) of the combined list is season 2 episode 3
+                            ctx.anime.tab.onSelectEpisode({ mediaId: 2, episodeNumber: 3, episode: { episodeNumber: 3, baseAnime: { id: 2 } } })
+                            const last = navigations[navigations.length - 1]
+                            assert.strictEqual(JSON.stringify(last.params), JSON.stringify({ id: "2", tab: "onlinestream", episode: "6" }))
+                        })
+                        check("all seasons: off in the settings", () => {
+                            const st = Object.assign({}, store.get("vsuite:settings") || {}, { allSeasons: "no" })
+                            store.set("vsuite:settings", st)
+                            assert.strictEqual(ctx.anime.tab.onEpisodeCollection({ mediaId: 2, episodeCollection: { episodes: [] } }), undefined)
+                            st.allSeasons = "yes"
+                            store.set("vsuite:settings", st)
+                        })
+                    }))
                     check("AniList limit gives one message", () => {
                         anilistFails = true
                         store.clear()
@@ -618,10 +659,110 @@ setImmediate(() => {
                             assert.strictEqual(e.libraryCollection.continueWatchingList.length, 0)
                         })
                     })))))
+                    const belowCreated = []
                     setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => {
+                        check("dropdown below the buttons, above the episode list", () => {
+                            const first = makeElement("div")
+                            first.before = (c) => belowCreated.push(c)
+                            const content = makeElement("div")
+                            content.getChildren = () => Promise.resolve([first])
+                            domElements["[data-anime-entry-page-content]"] = content
+                            navigateCb({ pathname: "/entry", searchParams: { id: "2" } })
+                        })
+                    }))))))
+                    setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => {
+                        check("dropdown is in front of the episode list", () => {
+                            delete domElements["[data-anime-entry-page-content]"]
+                            const wrap = belowCreated.find((c) => c.attributes && /vtss-switcher/.test(c.attributes.class))
+                            assert.ok(wrap, "dropdown not placed above the list")
+                            assert.ok(/vtss-below/.test(wrap.attributes.class))
+                            assert.strictEqual(wrap.attributes["data-place"], "episodes")
+                        })
+                    }))))))))
+                    setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => {
+                        check("next season: finished season, sequel out and not started", () => {
+                            const t = Date.now() + clockOffset
+                            store.set("vsa:m:80", { time: t, id: 80, type: "ANIME", format: "TV", status: "FINISHED", episodes: 12, startDate: { year: 2023 }, title: { english: "Done Show" }, cover: "", rel: [{ type: "SEQUEL", id: 81, mediaType: "ANIME" }] })
+                            store.set("vsa:m:81", { time: t, id: 81, type: "ANIME", format: "TV", status: "FINISHED", episodes: 12, startDate: { year: 2024 }, title: { english: "Done Show 2" }, cover: "c81.jpg", rel: null })
+                            clockOffset += 61000
+                            navigateCb({ pathname: "/", searchParams: {} })
+                        })
+                    }))))))))) 
+                    setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => {
+                        check("next season goes into continue watching", () => {
+                            const e = { libraryCollection: { continueWatchingList: [] }, next() {} }
+                            hooks.onAnimeLibraryCollection(e)
+                            const list = e.libraryCollection.continueWatchingList
+                            assert.strictEqual(list.length, 1, JSON.stringify(list))
+                            assert.strictEqual(list[0].baseAnime.id, 81)
+                            assert.strictEqual(list[0].episodeNumber, 1)
+                        })
+                        check("next season: off in the settings", () => {
+                            const st = Object.assign({}, store.get("vsuite:settings") || {}, { nextContinue: "no" })
+                            store.set("vsuite:settings", st)
+                            const e = { libraryCollection: { continueWatchingList: [] }, next() {} }
+                            hooks.onAnimeLibraryCollection(e)
+                            assert.strictEqual(e.libraryCollection.continueWatchingList.length, 0)
+                            st.nextContinue = "yes"
+                            store.set("vsuite:settings", st)
+                        })
+                    })))))))))))
+                    // Home page cards: one per series, badge with your progress, click opens your season
+                    const cardEls = {}
+                    const cardCalls = []
+                    setTimeout(() => {
+                        check("home page cards: merged, badge and link to your season", () => {
+                            const row = makeElement("div")
+                            const card = (id) => {
+                                const c = makeElement("div", { "data-media-id": String(id), "data-media-type": "anime" })
+                                const bodyEl = makeElement("div")
+                                c.queryOne = (sel) => Promise.resolve(sel === "[data-media-entry-card-body]" ? bodyEl : null)
+                                c.body = bodyEl
+                                c.getParent = () => Promise.resolve(c.parentEl)
+                                c.setStyle = (k, v) => cardCalls.push([id, k, v])
+                                cardEls[c.id] = c
+                                return c
+                            }
+                            const a = card(2), b = card(3)
+                            a.parentEl = row
+                            b.parentEl = row
+                            row.getChildren = () => Promise.resolve([a, b])
+                            row.getParent = () => Promise.resolve(null)
+                            const other = makeElement("div")
+                            const c1 = card(1)
+                            c1.parentEl = other
+                            other.getChildren = () => Promise.resolve([c1, makeElement("div")])
+                            const cards = [a, b, c1]
+                            ctx.dom.query = (sel) => Promise.resolve(/data-media-entry-card-container/.test(sel) ? cards : [])
+                            ctx.dom.asElement = (id) => cardEls[id] || makeElement("div", { id })
+                            const obs = observers.find((o) => /data-media-entry-card-container/.test(o.sel))
+                            obs.cb(cards)
+                        })
+                    }, 30)
+                    setTimeout(() => {
+                        check("home page cards: later season of the same row hidden", () => {
+                            const hidden = cardCalls.filter((c) => c[1] === "display" && c[2] === "none").map((c) => c[0])
+                            assert.strictEqual(JSON.stringify(hidden), "[3]")
+                        })
+                        check("home page cards: badge shows the season you are at", () => {
+                            const a = Object.values(cardEls).find((c) => c.attributes["data-media-id"] === "2")
+                            const badge = a.body.children.find((c) => c.attributes.class === "vtss-seasons")
+                            assert.ok(badge, "no badge")
+                            assert.strictEqual(badge.text, "3 Staffeln · S2 5/12")
+                        })
+                        check("home page cards: the season 1 card opens season 2, where you are", () => {
+                            const c1 = Object.values(cardEls).find((c) => c.attributes["data-media-id"] === "1")
+                            assert.ok(c1.listeners.click, "no click handler")
+                            c1.listeners.click()
+                            navigateCb({ pathname: "/entry", searchParams: { id: "1" } })
+                            const last = navigations[navigations.length - 1]
+                            assert.strictEqual(last.params.id, "2", JSON.stringify(last))
+                        })
+                    }, 80)
+                    setTimeout(() => {
                         console.log(failures ? "\n" + failures + " failed" : "\nall passed")
                         process.exitCode = failures ? 1 : 0
-                    }))))))
+                    }, 150)
                 }))
             })
         })

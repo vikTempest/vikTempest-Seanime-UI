@@ -33,6 +33,38 @@ function init() {
             catch (err) {}
             // Library collection (local files) or stream collection (streaming "include in library")
             const lc = e.libraryCollection || e.streamCollection
+
+            // Next season in "Continue watching": the UI part below finds series whose last season
+            // you finished and whose next season is out but not started yet, and keeps its first
+            // episode in $store "vtss:next". Seanime itself only shows anime you are watching.
+            let nextOn = "yes"
+            try { nextOn = $getUserPreference("nextContinue") || "yes" } catch (err) {}
+            if (nextOn === "yes" && e.libraryCollection) {
+                let saved = null
+                try { saved = $store.get("vtss:next") } catch (err) {}
+                if (!saved) {
+                    try { saved = $storage.get("vtss:next") } catch (err) {}
+                }
+                const items = (saved && saved.items) || []
+                if (items.length) {
+                    const cw = e.libraryCollection.continueWatchingList || []
+                    const have = {}
+                    cw.forEach((ep) => {
+                        if (ep && ep.baseAnime && ep.baseAnime.id) have[ep.baseAnime.id] = true
+                    })
+                    let added = 0
+                    items.forEach((it) => {
+                        if (!it || !it.mediaId || have[it.mediaId] || !it.episode || !it.episode.baseAnime) return
+                        // A season of the same series already in the row wins (see the merge below)
+                        if ((it.series || []).some((id) => have[id])) return
+                        have[it.mediaId] = true
+                        cw.push(JSON.parse(JSON.stringify(it.episode)))
+                        added++
+                    })
+                    if (added) e.libraryCollection.continueWatchingList = cw
+                }
+            }
+
             if (enabled === "yes" && lc) {
                 const ids = []
                 ;(lc.lists || []).forEach((list) => (list.entries || []).forEach((entry) => {
@@ -365,7 +397,12 @@ function init() {
                 const col = plain($anilist.getAnimeCollection(false))
                 const lists = (col && col.MediaListCollection && col.MediaListCollection.lists) || []
                 lists.forEach((list) => ((list && list.entries) || []).forEach((entry) => {
-                    if (entry && entry.media && entry.media.id) map[entry.media.id] = { status: entry.status, progress: entry.progress || 0 }
+                    if (entry && entry.media && entry.media.id) {
+                        map[entry.media.id] = {
+                            status: entry.status, progress: entry.progress || 0, updatedAt: entry.updatedAt || 0,
+                            episodes: entry.media.episodes || 0,
+                        }
+                    }
                 }))
             }
             catch (e) {
@@ -387,6 +424,55 @@ function init() {
                 return label + " · " + entry.progress + "/" + (node.episodes || "?")
             }
             return label
+        }
+
+        // -----------------------------------------------------------------------------------------
+        // One series: where you are in it
+
+        const WATCHING = { CURRENT: true, REPEATING: true, PAUSED: true }
+
+        function startOf(n) {
+            return n.start !== undefined ? n.start : dateKey(n)
+        }
+
+        // Out already. Without a status (old cached copy) the start date decides.
+        function released(n) {
+            if (n.status) return n.status === "RELEASING" || n.status === "FINISHED"
+            const d = new Date()
+            return startOf(n) <= d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate()
+        }
+
+        // The seasons (TV, short, ONA) of a series in order
+        function seasonsOf(nodes) {
+            return nodes.filter((n) => n && n.id && SEASON_FORMATS[n.format])
+                .sort((a, b) => startOf(a) - startOf(b) || a.id - b.id)
+        }
+
+        // Where you are in a series: { season, index (from 1), progress, total } or { done: true }
+        //  - the first season you are watching (or paused)
+        //  - otherwise the season after the last one you finished, once it is out
+        //  - "done" when you finished every season that is out
+        // null when no season is on your list.
+        function seriesState(seasons, entries) {
+            if (!entries || !seasons.length) return null
+            for (let i = 0; i < seasons.length; i++) {
+                const e = entries[seasons[i].id]
+                if (e && WATCHING[e.status]) {
+                    return { season: seasons[i], index: i + 1, progress: e.progress || 0, total: seasons[i].episodes || e.episodes || 0 }
+                }
+            }
+            let last = -1
+            seasons.forEach((n, i) => {
+                const e = entries[n.id]
+                if (e && e.status === "COMPLETED") last = i
+            })
+            if (last < 0) return null
+            const next = seasons[last + 1]
+            if (next && released(next)) {
+                const e = entries[next.id]
+                return { season: next, index: last + 2, progress: (e && e.progress) || 0, total: next.episodes || (e && e.episodes) || 0 }
+            }
+            return { season: seasons[last], index: last + 1, done: true }
         }
 
         function buildOptions(franchise, currentId) {
@@ -420,6 +506,22 @@ function init() {
         // Page integration
 
         const TITLE_CONTAINER = "[data-media-page-header-entry-details-title-container]"
+        // Below the buttons, right above the episode list (setting "switcherPlace")
+        const PAGE_CONTENT = "[data-anime-entry-page-content]"
+        const belowButtons = () => pref("switcherPlace", "episodes") === "episodes"
+
+        // Where the dropdown goes: { el, how } with how "after" (below the title) or "before"
+        // (in front of the first thing above the episode list). Falls back to the title.
+        function switcherAnchor() {
+            if (!belowButtons()) return ctx.dom.queryOne(TITLE_CONTAINER).then((el) => el ? { el: el, how: "after" } : null)
+            return ctx.dom.queryOne(PAGE_CONTENT).then((content) => {
+                if (!content) return ctx.dom.queryOne(TITLE_CONTAINER).then((el) => el ? { el: el, how: "after" } : null)
+                return content.getChildren().then((children) => {
+                    const first = (children || [])[0]
+                    return first ? { el: first, how: "before" } : { el: content, how: "append" }
+                })
+            })
+        }
         const state = { mediaId: 0, options: null, injecting: false, pathname: "" }
 
         function removeSwitchers() {
@@ -436,31 +538,36 @@ function init() {
 
             ctx.dom.queryOne(".vtss-switcher")
                 .then((existing) => {
+                    const place = belowButtons() ? "episodes" : "title"
                     if (existing) {
-                        return Promise.resolve(existing.getAttribute("data-media-id")).then((id) => {
-                            if (String(id) === String(mediaId)) return null
+                        return Promise.all([existing.getAttribute("data-media-id"), existing.getAttribute("data-place")]).then((a) => {
+                            if (String(a[0]) === String(mediaId) && String(a[1]) === place) return null
                             existing.remove()
-                            return ctx.dom.queryOne(TITLE_CONTAINER)
+                            return switcherAnchor()
                         })
                     }
-                    return ctx.dom.queryOne(TITLE_CONTAINER)
+                    return switcherAnchor()
                 })
-                .then((title) => {
-                    if (!title || state.mediaId !== mediaId) return
+                .then((anchor) => {
+                    if (!anchor || state.mediaId !== mediaId) return
                     return ctx.dom.createElement("div").then((wrap) => {
                         const optionsHtml = options.map((o) =>
                             "<option value=\"" + o.id + "\"" + (o.id === mediaId ? " selected" : "") + ">" +
                             escapeHtml(o.label) + "</option>",
                         ).join("")
-                        wrap.setAttribute("class", "vtss-switcher")
+                        const place = belowButtons() ? "episodes" : "title"
+                        wrap.setAttribute("class", "vtss-switcher" + (anchor.how === "after" ? "" : " vtss-below"))
                         wrap.setAttribute("data-media-id", String(mediaId))
+                        wrap.setAttribute("data-place", place)
                         // Layout and sizes (phone and desktop) come from the plugin's style sheet
                         ensureStyle()
                         wrap.setInnerHTML(
                             "<span class=\"vtss-label\">" + escapeHtml(t("label")) + "</span>" +
                             "<select class=\"vtss-select\">" + optionsHtml + "</select>",
                         )
-                        title.after(wrap)
+                        if (anchor.how === "after") anchor.el.after(wrap)
+                        else if (anchor.how === "before") anchor.el.before(wrap)
+                        else anchor.el.append(wrap)
                         return wrap.queryOne("select").then((select) => {
                             if (!select) return
                             select.addEventListener("change", () => {
@@ -486,7 +593,9 @@ function init() {
         // hides every further card of a series that already has one in the same row.
 
         const CARD = "[data-media-entry-card-container][data-media-id]"
-        const rows = { timer: null, running: false, again: false, hidden: {}, parents: {}, swapped: {}, badged: {}, redirect: null }
+        const rows = { timer: null, running: false, again: false, hidden: {}, parents: {}, swapped: {}, badged: {}, links: {}, redirect: null }
+        // Pages where every series gets one card: home page and "My lists"
+        const MERGE_PAGES = { "/": true, "/lists": true }
 
         // AniList requests block the plugin while they run (also its windows and the settings
         // page), and AniList allows only a few per minute. So the home page asks for at most
@@ -501,7 +610,7 @@ function init() {
         function infoOf(e) {
             const d = e.startDate || {}
             return {
-                id: e.id, format: e.format, season: e.season, seasonYear: e.seasonYear || d.year,
+                id: e.id, format: e.format, status: e.status, episodes: e.episodes || 0, season: e.season, seasonYear: e.seasonYear || d.year,
                 title: e.title || {}, cover: e.cover || "",
                 start: d.year ? d.year * 10000 + (d.month || 12) * 100 + (d.day || 28) : 99999999,
                 rel: (e.rel || []).filter((r) => r.mediaType === "ANIME" && (r.type === "PREQUEL" || r.type === "SEQUEL")).map((r) => r.id),
@@ -592,9 +701,12 @@ function init() {
                 rows.again = true
                 return
             }
-            if (state.pathname !== "/" || pref("mergeLibrary", "yes") !== "yes") return
+            if (!MERGE_PAGES[state.pathname] || pref("mergeLibrary", "yes") !== "yes") return
             rows.running = true
             const latest = pref("mergeKeep", "first") === "latest"
+            const openCurrent = pref("openCurrent", "yes") === "yes"
+            // Your list is read once per run (it is kept for a minute anyway)
+            const entries = listEntries()
 
             ctx.dom.query(CARD)
                 .then((cards) => {
@@ -632,12 +744,22 @@ function init() {
                                 delete rows.hidden[slot.hide]
                                 ctx.dom.asElement(slot.hide).removeStyle("display")
                             }
+                            if (shouldHide) return
                             // A card of a later season: show the series under its first season
-                            if (!shouldHide && !latest) {
+                            let target = null
+                            if (!latest) {
                                 const first = firstSeason(rel, find, id)
-                                if (first && first.id !== id) swapCard(c, id, first)
+                                if (first && first.id !== id) {
+                                    swapCard(c, first)
+                                    target = first.id
+                                }
                             }
-                            if (!shouldHide) seasonBadge(c, seasonCount(rel, find, id))
+                            // A click opens the season you are at
+                            const seasons = seasonsOf(Object.keys(rel).map((k) => rel[k]).filter((n) => n && find(n.id) === find(id)))
+                            const st = seriesState(seasons, entries)
+                            if (openCurrent && st && st.season && !st.done) target = st.season.id
+                            cardLink(c, id, target)
+                            seasonBadge(c, seasons.length, st)
                         })
                     })
                 })
@@ -673,31 +795,24 @@ function init() {
             return best ? best.node : null
         }
 
-        // Number of seasons (TV, short, ONA) of the series this anime belongs to
-        function seasonCount(rel, find, id) {
-            const root = find(id)
-            let n = 0
-            Object.keys(rel).forEach((key) => {
-                const node = rel[key]
-                if (node && node.id && SEASON_FORMATS[node.format] && find(node.id) === root) n++
-            })
-            return n
-        }
-
-        // Small "3 seasons" mark on the cover of a card that stands for several seasons
-        function seasonBadge(card, count) {
+        // Small "3 seasons · S2 5/12" mark on the cover of a card that stands for several seasons:
+        // how many there are and where you are ("✓" when you finished all of them)
+        function seasonBadge(card, count, st) {
             const n = pref("seasonBadge", "yes") === "yes" && count > 1 ? count : 0
-            if ((rows.badged[card.id] || 0) === n) return
-            rows.badged[card.id] = n
+            let text = n ? t("seasons", n) : ""
+            if (n && st && st.done) text += " ✓"
+            else if (n && st && st.season) text += " · S" + st.index + " " + st.progress + "/" + (st.total || "?")
+            if ((rows.badged[card.id] || "") === text) return
+            rows.badged[card.id] = text
             const el = ctx.dom.asElement(card.id)
             el.queryOne("[data-media-entry-card-body]").then((body) => {
                 if (!body) return
                 return body.query(".vtss-seasons").then((old) => {
                     ;(old || []).forEach((o) => o.remove())
-                    if (!n) return
+                    if (!text) return
                     return ctx.dom.createElement("div").then((badge) => {
                         badge.setAttribute("class", "vtss-seasons")
-                        badge.setText(t("seasons", n))
+                        badge.setText(text)
                         body.append(badge)
                     })
                 })
@@ -709,9 +824,8 @@ function init() {
             return s ? s.charAt(0).toUpperCase() + s.slice(1) : ""
         }
 
-        // Shows the first season's title, year and cover on the card, and opens the first season
-        // when the card is clicked
-        function swapCard(card, fromId, first) {
+        // Shows the first season's title, year and cover on the card
+        function swapCard(card, first) {
             if (rows.swapped[card.id] === first.id) return
             rows.swapped[card.id] = first.id
             const el = ctx.dom.asElement(card.id)
@@ -735,14 +849,27 @@ function init() {
                     img.setAttribute("src", first.cover)
                 }).catch(() => {})
             }
-            el.addEventListener("click", () => {
-                rows.redirect = { from: fromId, to: first.id, time: Date.now() }
+        }
+
+        // Clicking a card opens another season of the series (the first one, or the one you are
+        // at) instead of the one Seanime links to
+        function cardLink(card, fromId, toId) {
+            const listening = rows.links[card.id] !== undefined
+            rows.links[card.id] = toId && toId !== fromId ? toId : 0
+            if (listening || !rows.links[card.id]) {
+                if (!listening) delete rows.links[card.id]
+                return
+            }
+            ctx.dom.asElement(card.id).addEventListener("click", () => {
+                const to = rows.links[card.id]
+                if (!to || to === fromId) return
+                rows.redirect = { from: fromId, to: to, time: Date.now() }
                 const st = ctx.screen.state && ctx.screen.state()
                 const cur = st && st.get ? st.get() : null
-                // The card's own link may already have opened the later season
+                // The card's own link may already have opened its season
                 if (cur && cur.pathname === "/entry" && String(cur.searchParams && cur.searchParams.id) === String(fromId)) {
                     rows.redirect = null
-                    ctx.screen.navigateTo("/entry", { id: String(first.id) })
+                    ctx.screen.navigateTo("/entry", forceInfo ? { id: String(to), tab: INFO_TAB } : { id: String(to) })
                 }
             })
         }
@@ -766,6 +893,10 @@ function init() {
             " box-shadow: inset 0 0 0 1px rgb(var(--color-brand-500) / .7); }" +
             " .vtss-continue-label { font-size: 1.15rem; font-weight: 600; margin: 0 0 .75rem; }" +
             " .vtss-continue-item { cursor: pointer; }" +
+            " .vtss-continue-simple { display: flex; align-items: center; gap: 1rem; cursor: pointer; max-width: 40rem; }" +
+            " .vtss-continue-simple img { width: 12rem; aspect-ratio: 16/9; object-fit: cover; border-radius: var(--radius-md, .5rem); flex: none; }" +
+            " .vtss-continue-title { font-weight: 600; font-size: 1.05rem; }" +
+            " .vtss-continue-sub { color: var(--muted, #a1a1aa); margin-top: .25rem; }" +
             " .vtss-continue [data-vtss-copy-action] { display: none !important; }" +
             // Episode list next to the stream: picture and title only (Seanime blurs titles per its spoiler settings)
             " [data-anime-entry-page-online-streaming-view] [data-episode-grid-item-episode-description] { display: none !important; }" +
@@ -783,6 +914,8 @@ function init() {
             " padding: .4rem 2rem .4rem .75rem; font-size: 16px; font-weight: 600; cursor: pointer;" +
             " text-overflow: ellipsis; white-space: nowrap; overflow: hidden; backdrop-filter: blur(6px); }" +
             " .vtss-select option { background: #151515; color: #fff; }" +
+            // Below the buttons: left-aligned like them, with room to the list
+            " .vtss-switcher.vtss-below { justify-content: flex-start; margin: 1.25rem 0 0; }" +
             " @media (min-width: 1024px) { .vtss-switcher { justify-content: flex-start; width: auto; }" +
             " .vtss-select { flex: 0 1 auto; min-height: 0; font-size: .95rem; } }" +
             // Play symbol on episode pictures and tappable titles
@@ -821,7 +954,7 @@ function init() {
         }
 
         function scheduleMergeRows() {
-            if (state.pathname !== "/") return
+            if (!MERGE_PAGES[state.pathname]) return
             if (rows.timer) rows.timer()
             rows.timer = ctx.setTimeout(() => {
                 rows.timer = null
@@ -907,12 +1040,129 @@ function init() {
             }, 1500)
         }
 
+        // -----------------------------------------------------------------------------------------
+        // All seasons in one episode list (setting "allSeasons")
+        //
+        // The Episodes tab lists the episodes of every season of the series one after the other
+        // ("Season 2 · Episode 1" and so on). Each episode keeps its own anime, so a click starts
+        // the stream of the right season and AniList counts it there. Seanime marks episodes as
+        // watched from the progress of the anime whose page is open, so the episodes of the other
+        // seasons get their marks from your list (see markEpisode).
+
+        const merged = { mediaId: 0, list: [], episodes: {}, next: null, pageNext: 0, time: 0 }
+
+        function resetMerged() {
+            merged.mediaId = 0
+            merged.list = []
+            merged.episodes = {}
+            merged.next = null
+            merged.pageNext = 0
+            merged.time = 0
+        }
+
+        function partLabel(node, k) {
+            return SEASON_FORMATS[node.format] ? t("season", k) : (t("formats")[node.format] || node.format || "")
+        }
+
+        // Returns the combined collection (a promise), or undefined to keep Seanime's own
+        function allSeasonsCollection(mediaId, col) {
+            resetMerged()
+            if (pref("allSeasons", "yes") !== "yes" || !mediaId) return undefined
+            let franchise
+            try { franchise = loadFranchise(mediaId) }
+            catch (e) {
+                checkRateLimit(e)
+                return undefined
+            }
+            const own = franchise.filter((n) => n.id === mediaId)[0]
+            // On the page of a movie or OVA the list stays as it is, unless they are in the dropdown
+            if (!own || (!SEASON_FORMATS[own.format] && !includeExtras())) return undefined
+            // Seasons that are out, plus movies and OVAs when they are shown in the dropdown
+            const parts = []
+            let k = 0
+            franchise.forEach((n) => {
+                const isSeason = !!SEASON_FORMATS[n.format]
+                if (isSeason) k++
+                if (n.id !== mediaId && !released(n)) return
+                if (!isSeason && n.id !== mediaId && (!includeExtras() || n.format === "MUSIC")) return
+                parts.push({ node: n, label: partLabel(n, k) })
+            })
+            if (parts.length < 2) return undefined
+
+            const entries = listEntries() || {}
+            const pageProgress = (entries[mediaId] && entries[mediaId].progress) || 0
+            const st = seriesState(seasonsOf(parts.map((p) => p.node)), entries)
+            return Promise.all(parts.map((p) => {
+                if (p.node.id === mediaId) return Promise.resolve(plain(col) || {})
+                let r = null
+                try { r = ctx.anime.getEpisodeCollection(p.node.id) } catch (e) { return Promise.resolve(null) }
+                return Promise.resolve(r).then((c) => plain(c), () => null)
+            })).then((cols) => {
+                const episodes = []
+                const list = []
+                const shown = {}
+                parts.forEach((p, i) => {
+                    const id = p.node.id
+                    const e = entries[id]
+                    ;((cols[i] && cols[i].episodes) || []).forEach((ep) => {
+                        if (!ep || !ep.episodeNumber) return
+                        const copy = Object.assign({}, ep)
+                        if (!copy.baseAnime) copy.baseAnime = { id: id, isAdult: false }
+                        // Also keeps Seanime's keys apart (episode number + title)
+                        copy.displayTitle = p.label + " · " + (ep.displayTitle || ("Episode " + ep.episodeNumber))
+                        if (id !== mediaId) {
+                            // Seanime: watched when (page progress) >= progressNumber
+                            const watched = !!e && (e.status === "COMPLETED" || (e.progress || 0) >= (ep.progressNumber || ep.episodeNumber))
+                            copy.progressNumber = watched ? 0 : 100000
+                        }
+                        const img = (ep.episodeMetadata && ep.episodeMetadata.image) || (copy.baseAnime && copy.baseAnime.bannerImage) || ""
+                        merged.episodes[id + ":" + ep.episodeNumber] = { image: img, title: copy.displayTitle, episodeTitle: ep.episodeTitle || "" }
+                        list.push({ id: id, ep: ep.episodeNumber })
+                        shown[id] = true
+                        episodes.push(copy)
+                    })
+                })
+                // Nothing from the other seasons (e.g. no metadata): keep Seanime's list
+                if (Object.keys(shown).length < 2) return undefined
+                merged.mediaId = mediaId
+                merged.list = list
+                merged.next = st && !st.done && st.season && shown[st.season.id] ? { id: st.season.id, ep: st.progress + 1 } : null
+                merged.pageNext = pageProgress
+                merged.time = Date.now()
+                return Object.assign({}, plain(col) || {}, { episodes: episodes })
+            }, (e) => {
+                console.warn("season-switcher: all seasons list", e)
+                return undefined
+            })
+        }
+
         ctx.anime.registerEntryEpisodeTab({
             name: t("episodesTab"),
             icon: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor' width='18' height='18'><path d='M4 5h16v2H4zm0 6h10v2H4zm0 6h10v2H4zm13-5 5 3.5-5 3.5z'/></svg>",
             shouldShow: () => true,
+            onEpisodeCollection: (e) => {
+                try { return allSeasonsCollection(e && e.mediaId, e && e.episodeCollection) }
+                catch (err) {
+                    console.warn("season-switcher: all seasons list", err)
+                    return undefined
+                }
+            },
             onSelectEpisode: (e) => {
-                if (e && e.mediaId && e.episodeNumber) playEpisode(e.mediaId, e.episodeNumber)
+                if (!e || !e.episodeNumber) return
+                const ep = e.episode
+                let id = (ep && ep.baseAnime && ep.baseAnime.id) || e.mediaId
+                let num = e.episodeNumber
+                // Seanime's "play next episode" right after the page opened picks the episode at
+                // position (progress) of the list, which in the combined list may be another
+                // season's. Then it is the next episode of the anime whose page is open.
+                if (merged.mediaId && merged.mediaId === e.mediaId && Date.now() - merged.time < 2000) {
+                    const at = merged.list[merged.pageNext]
+                    if (at && at.id === id && at.ep === num) {
+                        id = merged.mediaId
+                        num = merged.pageNext + 1
+                    }
+                }
+                if (id && num) playEpisode(id, num)
             },
         })
 
@@ -923,6 +1173,12 @@ function init() {
         // Your AniList progress for the anime on this page (number of watched episodes)
         function listProgress(mediaId) {
             if (marks.progress[mediaId]) return marks.progress[mediaId]
+            // Another season in the combined list: from your list
+            if (mediaId !== state.mediaId) {
+                const e = (listEntries() || {})[mediaId]
+                marks.progress[mediaId] = Promise.resolve(e ? e.progress || 0 : 0)
+                return marks.progress[mediaId]
+            }
             marks.progress[mediaId] = ctx.dom.queryOne("[data-anime-entry-page]")
                 .then((page) => page ? page.getAttribute("data-anime-entry-list-data") : null)
                 .then((json) => {
@@ -934,12 +1190,18 @@ function init() {
 
         function markEpisode(item) {
             const attrs = item.attributes || {}
-            const watched = attrs["data-is-watched"] === "true"
+            const mediaId = parseInt(String(attrs["data-media-id"] || state.mediaId || ""), 10)
+            const episodeNumber = parseInt(String(attrs["data-episode-number"] || ""), 10)
+            // In the combined list Seanime only knows the progress of this page's anime
+            const combined = !!merged.mediaId && merged.mediaId === state.mediaId
+            let watched = attrs["data-is-watched"] === "true"
+            if (combined && mediaId && mediaId !== state.mediaId) {
+                const e = (listEntries() || {})[mediaId]
+                watched = !!e && (e.status === "COMPLETED" || (e.progress || 0) >= episodeNumber)
+            }
             const key = item.id + ":" + watched
             if (marks.done[key]) return
             marks.done[key] = true
-            const mediaId = parseInt(String(attrs["data-media-id"] || state.mediaId || ""), 10)
-            const episodeNumber = parseInt(String(attrs["data-episode-number"] || ""), 10)
 
             let history = null
             if (!watched && mediaId && episodeNumber) {
@@ -956,8 +1218,10 @@ function init() {
             ]).then((res) => {
                 const image = res[0], progress = res[1]
                 if (!image) return
-                // "Continue watching" is just a mark on the next episode instead of the big row
-                const isNext = !watched && progress >= 0 && episodeNumber === progress + 1
+                // "Continue watching" is just a mark on the next episode instead of the big row.
+                // In the combined list only in the season you are at.
+                const isNext = !watched && progress >= 0 && episodeNumber === progress + 1 &&
+                    (!combined || (merged.next ? merged.next.id === mediaId : mediaId === state.mediaId))
                 return image.query(".vtss-watched, .vtss-next, .vtss-progress, .vtss-progress-label").then((old) => {
                     ;(old || []).forEach((el) => el.remove())
                     const add = []
@@ -1020,15 +1284,20 @@ function init() {
         }
 
         function renderContinue() {
-            const mediaId = state.mediaId
-            if (!mediaId) return
+            const pageId = state.mediaId
+            if (!pageId) return
+            // In the combined list: the season you are at
+            const mediaId = merged.mediaId === pageId && merged.next ? merged.next.id : pageId
             continueEpisode(mediaId).then((ep) => {
-                if (state.mediaId !== mediaId) return
+                if (state.mediaId !== pageId) return
                 return Promise.all([
-                    ctx.dom.queryOne(TAB_EPISODE + "[data-episode-number=\"" + ep + "\"]"),
+                    ctx.dom.queryOne(TAB_EPISODE + "[data-media-id=\"" + mediaId + "\"][data-episode-number=\"" + ep + "\"]"),
                     ctx.dom.queryOne(CAROUSEL),
                 ]).then((res) => {
                     const item = res[0], carousel = res[1]
+                    // On another page of a long list: a simple entry from the combined list
+                    const simple = merged.mediaId === pageId ? merged.episodes[mediaId + ":" + ep] : null
+                    if (!item && carousel && simple) return simpleContinue(carousel, mediaId, ep, simple)
                     if (!item || !carousel) return removeContinue()
                     return Promise.all([item.getProperty("outerHTML"), item.getParent()]).then((r) => {
                         const html = String(r[0] || "").split("data-episode-grid-item").join("data-vtss-copy")
@@ -1052,6 +1321,135 @@ function init() {
                     })
                 })
             }).catch((e) => console.warn("season-switcher: continue panel", e))
+        }
+
+        function simpleContinue(carousel, mediaId, ep, info) {
+            const html = "<div class=\"vtss-continue-simple\">" +
+                (info.image ? "<img src=\"" + escapeHtml(info.image) + "\" alt=\"\">" : "") +
+                "<div><div class=\"vtss-continue-title\">" + escapeHtml(info.title) + "</div>" +
+                (info.episodeTitle ? "<div class=\"vtss-continue-sub\">" + escapeHtml(info.episodeTitle) + "</div>" : "") +
+                "</div></div>"
+            return ctx.dom.query(".vtss-continue").then((old) => {
+                if (old && old.length && cont.html === html) return
+                ;(old || []).forEach((el) => el.remove())
+                cont.html = html
+                return ctx.dom.createElement("div").then((panel) => {
+                    panel.setAttribute("class", "vtss-continue")
+                    panel.setInnerHTML("<div class=\"vtss-continue-label\">" + t("continueWatching") + "</div>" + html)
+                    panel.addEventListener("click", () => playEpisode(mediaId, ep))
+                    carousel.before(panel)
+                })
+            })
+        }
+
+        // -----------------------------------------------------------------------------------------
+        // Next season in "Continue watching" (UI part, the hook is at the top of this file)
+        //
+        // You finished a season in the last NEXT_DAYS days and the next season is out, but not on
+        // your list yet (or only planned). Seanime doesn't show it, so the plugin keeps its first
+        // episode in $store/$storage "vtss:next" for the library hook. Once you start it, Seanime
+        // shows it by itself and it drops out here. Only AniList data from the cache is used.
+
+        const NEXT_KEY = "vtss:next"
+        const NEXT_DAYS = 60
+        const NEXT_MAX = 10
+        const LIBRARY_QUERY = "ANIME-COLLECTION-get-library-collection"
+        const nextCw = { sig: null, busy: false, time: 0 }
+        try {
+            const saved = $storage.get(NEXT_KEY)
+            if (saved && saved.items) {
+                nextCw.sig = saved.sig || null
+                $store.set(NEXT_KEY, saved)
+            }
+        }
+        catch (e) {}
+
+        // The next season after this anime: SEQUEL steps, also through a movie or OVA in between
+        function nextSeasonOf(id) {
+            let cur = id
+            for (let hop = 0; hop < 4; hop++) {
+                const node = ani.get(cur, { full: true, stale: true })
+                if (!node) return null
+                let best = null
+                ;(node.rel || []).forEach((r) => {
+                    if (r.type !== "SEQUEL" || (r.mediaType && r.mediaType !== "ANIME")) return
+                    const n = ani.get(r.id, { stale: true })
+                    if (!n || n.missing || n.status === "CANCELLED") return
+                    const score = SEASON_FORMATS[n.format] ? 1 : 0
+                    if (!best || score > best.score) best = { score: score, node: n }
+                })
+                if (!best) return null
+                if (best.score) return best.node
+                cur = best.node.id
+            }
+            return null
+        }
+
+        // Episode 1 as Seanime builds it for its lists (title, picture), or a simple one
+        function firstEpisode(node) {
+            const media = {
+                id: node.id, type: "ANIME", format: node.format, status: node.status, episodes: node.episodes || 0, isAdult: false,
+                title: Object.assign({ userPreferred: titleOf(node) }, node.title || {}),
+                coverImage: { large: node.cover || "", extraLarge: node.cover || "", medium: node.cover || "" },
+                startDate: node.startDate || {}, season: node.season, seasonYear: node.seasonYear,
+            }
+            const simple = () => ({
+                type: "main", displayTitle: "Episode 1", episodeTitle: titleOf(node), episodeNumber: 1,
+                absoluteEpisodeNumber: 1, progressNumber: 1, isDownloaded: false, isInvalid: false,
+                episodeMetadata: { image: node.cover || "", hasImage: !!node.cover }, baseAnime: media, _isNakamaEpisode: false,
+            })
+            const keep = (ep) => {
+                if (!ep.baseAnime) ep.baseAnime = media
+                // Seanime hides episodes without isAdult === false when adult content is off
+                if (ep.baseAnime.isAdult === undefined) ep.baseAnime.isAdult = false
+                delete ep.localFile
+                return ep
+            }
+            let p = null
+            try { p = ctx.anime.getEpisodeCollection(node.id) } catch (e) {}
+            if (!p || typeof p.then !== "function") return Promise.resolve(keep(simple()))
+            return p.then((col) => {
+                const eps = ((plain(col) || {}).episodes) || []
+                return keep(eps.filter((ep) => ep && ep.episodeNumber === 1)[0] || simple())
+            }, () => keep(simple()))
+        }
+
+        function nextSync() {
+            if (nextCw.busy || Date.now() - nextCw.time < 60000) return
+            nextCw.time = Date.now()
+            const entries = pref("nextContinue", "yes") === "yes" ? (listEntries() || {}) : {}
+            const now = Date.now()
+            const cands = []
+            const seen = {}
+            Object.keys(entries).forEach((k) => {
+                const e = entries[k]
+                const id = parseInt(k, 10)
+                if (!e || e.status !== "COMPLETED" || !e.updatedAt || now - e.updatedAt * 1000 > NEXT_DAYS * 86400000) return
+                const n = nextSeasonOf(id)
+                if (!n || seen[n.id] || !released(n)) return
+                const ne = entries[n.id]
+                if (ne && ne.status !== "PLANNING") return
+                seen[n.id] = true
+                cands.push({ mediaId: n.id, from: id, time: e.updatedAt, node: n })
+            })
+            cands.sort((a, b) => b.time - a.time)
+            const list = cands.slice(0, NEXT_MAX)
+            const sig = list.map((c) => c.mediaId).join(",")
+            if (sig === nextCw.sig) return
+            nextCw.busy = true
+            Promise.all(list.map((c) => firstEpisode(c.node).then((ep) => ({ mediaId: c.mediaId, series: [c.from], episode: ep }))))
+                .then((items) => {
+                    const data = { sig: sig, items: items }
+                    try { $store.set(NEXT_KEY, data) } catch (e) {}
+                    try { $storage.set(NEXT_KEY, data) } catch (e) {}
+                    nextCw.sig = sig
+                    nextCw.busy = false
+                    // The home page loads its rows again
+                    try { $app.invalidateClientQuery([LIBRARY_QUERY]) } catch (e) {}
+                }, (e) => {
+                    nextCw.busy = false
+                    console.warn("season-switcher: next season in continue watching", e)
+                })
         }
 
         // Returns true when the page is being replaced
@@ -1158,6 +1556,7 @@ function init() {
                 }
             }
             if (routeToInfoPage(pathname, searchParams, prev)) return
+            if (pathname === "/") nextSync()
             if (state.pathname !== pathname) {
                 state.pathname = pathname
                 relLimit.runs = 0
@@ -1165,6 +1564,7 @@ function init() {
                 rows.parents = {}
                 rows.swapped = {}
                 rows.badged = {}
+                rows.links = {}
                 episodes.done = {}
                 marks.done = {}
                 marks.progress = {}
@@ -1174,6 +1574,7 @@ function init() {
             if (id === state.mediaId) return
             state.mediaId = id || 0
             state.options = null
+            if (merged.mediaId !== state.mediaId) resetMerged()
             removeSwitchers()
             if (!id) return
 
@@ -1209,6 +1610,12 @@ function init() {
             ctx.dom.observe(TITLE_CONTAINER, (elements) => {
                 if (elements && elements.length) {
                     health("title")
+                    inject()
+                }
+            })
+            ctx.dom.observe(PAGE_CONTENT, (elements) => {
+                if (elements && elements.length) {
+                    health("content")
                     inject()
                 }
             })
