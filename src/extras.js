@@ -45,8 +45,11 @@ function init() {
                     })
                     let added = 0
                     items.forEach((it) => {
-                        if (!it || !it.mediaId || have[it.mediaId] || !it.episode || !it.episode.baseAnime) return
-                        have[it.mediaId] = true
+                        if (!it || !it.mediaId || !it.episode || !it.episode.baseAnime) return
+                        // One card per series: skip it when another season is already in the row
+                        const group = it.group && it.group.length ? it.group : [it.mediaId]
+                        if (group.some((id) => have[id])) return
+                        group.forEach((id) => { have[id] = true })
                         // A plain copy, so Seanime gets ordinary objects for its episode type
                         list.push(JSON.parse(JSON.stringify(it.episode)))
                         added++
@@ -612,7 +615,41 @@ function init() {
             return ((saved && saved.items) || []).filter((it) => it && it.mediaId)
         }
 
-        // Anime on your list as "Completed" that you played in the last RW_DAYS days
+        // Every season of the series (PREQUEL/SEQUEL in the shared AniList cache, no request:
+        // your list with relations is loaded once a day anyway)
+        function rewatchGroup(id) {
+            const ani = typeof vsAni === "object" && vsAni ? vsAni : null
+            const walk = () => {
+                const seen = {}
+                const out = []
+                const missing = []
+                const queue = [id]
+                while (queue.length && out.length < 40) {
+                    const cur = queue.shift()
+                    if (seen[cur]) continue
+                    seen[cur] = true
+                    out.push(cur)
+                    let node = null
+                    try { node = ani ? ani.get(cur, { full: true, stale: true }) : null } catch (e) {}
+                    if (!node) missing.push(cur)
+                    ;((node && node.rel) || []).forEach((r) => {
+                        if (r.mediaType && r.mediaType !== "ANIME") return
+                        if (r.type === "PREQUEL" || r.type === "SEQUEL") queue.push(r.id)
+                    })
+                }
+                return { ids: out, missing: missing }
+            }
+            let res = walk()
+            // Not in the cache yet: at most one small request, then once more
+            if (ani && res.missing.length) {
+                try { ani.fetch(res.missing, { maxRequests: 1, stale: true, interactive: true }) } catch (e) {}
+                res = walk()
+            }
+            return res.ids
+        }
+
+        // Anime on your list as "Completed" that you played in the last RW_DAYS days, one per
+        // series (the season you watched last)
         function rewatchCandidates() {
             let history = null
             try { history = plain(ctx.continuity.getWatchHistory()) } catch (e) {}
@@ -636,7 +673,17 @@ function init() {
                 out.push({ mediaId: h.mediaId, ep: ep, time: time, title: titleOf(m), media: m })
             })
             out.sort((a, b) => b.time - a.time)
-            return out.slice(0, RW_MAX)
+            const taken = {}
+            const one = []
+            out.forEach((c) => {
+                if (taken[c.mediaId]) return
+                c.group = rewatchGroup(c.mediaId)
+                // Also when only this season's side of the chain is known
+                if (c.group.some((id) => taken[id])) return
+                c.group.forEach((id) => { taken[id] = true })
+                one.push(c)
+            })
+            return one.slice(0, RW_MAX)
         }
 
         // The episode as Seanime builds it for its own lists (title, picture), or a simple one
@@ -676,7 +723,7 @@ function init() {
             const sig = cands.map((c) => c.mediaId + ":" + c.ep).join(",")
             if (sig === rw.sig) return
             rw.busy = true
-            Promise.all(cands.map((c) => rewatchEpisode(c).then((ep) => ({ mediaId: c.mediaId, ep: c.ep, time: c.time, title: c.title, episode: ep }))))
+            Promise.all(cands.map((c) => rewatchEpisode(c).then((ep) => ({ mediaId: c.mediaId, ep: c.ep, time: c.time, title: c.title, group: c.group, episode: ep }))))
                 .then((items) => {
                     const data = { sig: sig, items: items }
                     try { $store.set(RW_KEY, data) } catch (e) {}

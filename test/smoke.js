@@ -38,6 +38,7 @@ let mainTabReady = []
 let uiFn = null
 
 let watchHistory = {}
+let rewatchPhase = false
 let episodeCollectionCalls = 0
 let elementId = 0
 function makeElement(tag, attrs) {
@@ -199,6 +200,7 @@ const $anilist = {
     getAnimeCollection() {
         return { MediaListCollection: { lists: [{ entries: [
             { status: "COMPLETED", progress: 12, media: { id: 1, episodes: 12, title: { english: "Show", romaji: "Shou" }, bannerImage: "b1.jpg" } },
+            ...(rewatchPhase ? [{ status: "COMPLETED", progress: 12, media: { id: 3, episodes: 12, title: { english: "Show Season 3" } } }] : []),
             { status: "CURRENT", progress: 5, updatedAt: 200, media: { id: 2, episodes: 12, title: { english: "Show Season 2" }, bannerImage: "b2.jpg" } },
             { status: "COMPLETED", progress: 12, updatedAt: Math.floor(Date.now() / 1000), media: { id: 80, episodes: 12, title: { english: "Done Show" } } },
             { status: "CURRENT", progress: 3, updatedAt: 100, media: { id: 60, episodes: 0, status: "RELEASING", nextAiringEpisode: { episode: 4 }, title: { english: "Airing Show" } } },
@@ -620,7 +622,12 @@ setImmediate(() => {
                     // after the checks that wait for the page (filler style)
                     setImmediate(() => setImmediate(() => {
                         // Rewatch: "Show" (1) is completed on the list, you just finished episode 3 again
-                        watchHistory = { 1: { kind: "onlinestream", mediaId: 1, episodeNumber: 3, currentTime: 1400, duration: 1440, timeUpdated: new Date(Date.now() + clockOffset).toISOString() } }
+                        rewatchPhase = true
+                        // Season 3 of the same series is completed too and was played earlier: only one card
+                        watchHistory = {
+                            1: { kind: "onlinestream", mediaId: 1, episodeNumber: 3, currentTime: 1400, duration: 1440, timeUpdated: new Date(Date.now() + clockOffset).toISOString() },
+                            3: { kind: "onlinestream", mediaId: 3, episodeNumber: 2, currentTime: 100, duration: 1440, timeUpdated: new Date(Date.now() + clockOffset - 3600000).toISOString() },
+                        }
                         navigateCb({ pathname: "/", searchParams: {} })
                     }))
                     setImmediate(() => setImmediate(() => setImmediate(() => {
@@ -628,7 +635,9 @@ setImmediate(() => {
                             const e = { libraryCollection: { continueWatchingList: [{ episodeNumber: 6, baseAnime: { id: 2 } }] }, next() {} }
                             hooks.onAnimeLibraryCollection(e)
                             const list = e.libraryCollection.continueWatchingList
-                            assert.strictEqual(list.length, 2, JSON.stringify(list))
+                            const saved = (store.get("vsx:rewatch") || {}).items || []
+                            assert.deepStrictEqual(saved.map((x) => x.mediaId), [1], "only the season watched last")
+                            assert.strictEqual(list.length, 2, "one card per series: " + JSON.stringify(list.map((x) => x.baseAnime.id)))
                             assert.strictEqual(list[1].baseAnime.id, 1)
                             assert.strictEqual(list[1].episodeNumber, 4, "the episode after the finished one")
                             assert.strictEqual(list[1].displayTitle, "Episode 4")
@@ -649,6 +658,7 @@ setImmediate(() => {
                         })
                         check("rewatch: last episode finished, gone again", () => {
                             watchHistory[1].episodeNumber = 12
+                            delete watchHistory[3]
                             navigateCb({ pathname: "/", searchParams: {} })
                         })
                     })))
