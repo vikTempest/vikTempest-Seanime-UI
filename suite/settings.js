@@ -308,6 +308,7 @@ const VS_CHANGES = {
         "1.6.0: Schaust du einen fertigen Anime nochmal, steht er unter „Weiterschauen“ (nur in Seanime, AniList bleibt unverändert)",
         "1.6.1: Nochmal geschaute Serien stehen nur einmal unter „Weiterschauen“, mit der zuletzt geschauten Staffel",
         "1.7.0: Staffeln wie eine Serie: Dropdown über der Folgenliste, alle Staffeln in einer Folgenliste, Karten öffnen die Staffel, bei der du bist, und zeigen deinen Stand, nächste Staffel unter „Continue watching“, eine Karte pro Serie auch in „My lists“",
+        "1.7.1: Eingefahrene Seitenleiste verdeckt nichts mehr, die Seite rückt zur Seite, solange sie offen ist",
     ],
     en: [
         "Colour schemes: red, purple, blue or your own colours, picked on first start",
@@ -324,6 +325,7 @@ const VS_CHANGES = {
         "1.6.0: Rewatching a completed anime puts it under \"Continue watching\" (only in Seanime, AniList stays as it is)",
         "1.6.1: Rewatched series show up only once under \"Continue watching\", with the season you watched last",
         "1.7.0: Seasons as one series: dropdown above the episode list, all seasons in one episode list, cards open the season you are at and show your progress, next season in \"Continue watching\", one card per series in \"My lists\" too",
+        "1.7.1: The slide-away sidebar no longer covers the page, the page moves aside while it is out",
     ],
 }
 
@@ -393,7 +395,9 @@ function vsLayoutCss(s) {
         css += "@media (min-width: 1024px) {\n" +
             "  .UI-AppLayoutSidebar__root { transform: translateX(calc(-100% + 8px)); transition: transform .22s cubic-bezier(.2,.8,.2,1) .15s; }\n" +
             "  .UI-AppLayoutSidebar__root:hover, .UI-AppLayoutSidebar__root:focus-within { transform: none; transition-delay: 0s; }\n" +
-            "  .UI-AppLayout__root.with-sidebar > .appLayout { padding-left: 8px !important; transition: padding .22s; }\n" +
+            // While the sidebar is out the page moves right by Seanime's normal padding, so nothing is covered
+            "  .UI-AppLayout__root.with-sidebar > .appLayout { transition: padding-left .22s cubic-bezier(.2,.8,.2,1); }\n" +
+            "  html:not(:has(.UI-AppLayoutSidebar__root:hover, .UI-AppLayoutSidebar__root:focus-within)) .UI-AppLayout__root.with-sidebar > .appLayout { padding-left: 8px !important; transition-delay: .15s; }\n" +
             "}\n"
     }
     return css
