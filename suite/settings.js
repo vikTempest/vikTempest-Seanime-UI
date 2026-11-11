@@ -294,6 +294,7 @@ const VS_CHANGES = {
         "1.3.0: Nach der letzten Folge direkt zur nächsten Staffel, Weiterschauen mit einem Klick, Seitenleiste einfahren und Einträge ausblenden, Einstellungen sichern und laden, stabiler",
         "1.4.0: Viel weniger AniList-Anfragen: Staffeldaten werden gespeichert (auch nach einem Neustart), deine Liste kommt einmal am Tag in einer Anfrage, alle Teile teilen sich ein Limit pro Minute und warten nach „zu viele Anfragen“ gemeinsam",
         "1.6.0: Schaust du einen fertigen Anime nochmal, steht er unter „Weiterschauen“ (nur in Seanime, AniList bleibt unverändert)",
+        "1.6.1: Nochmal geschaute Serien stehen nur einmal unter „Weiterschauen“, mit der zuletzt geschauten Staffel",
     ],
     en: [
         "Colour schemes: red, purple, blue or your own colours, picked on first start",
@@ -308,6 +309,7 @@ const VS_CHANGES = {
         "1.3.0: Straight to the next season after the last episode, continue watching in one click, slide-away sidebar and hidden entries, back up and load settings, more stable",
         "1.4.0: Far fewer AniList requests: season data is saved (also across restarts), your list comes once a day in one request, all parts share a per-minute limit and wait together after \"too many requests\"",
         "1.6.0: Rewatching a completed anime puts it under \"Continue watching\" (only in Seanime, AniList stays as it is)",
+        "1.6.1: Rewatched series show up only once under \"Continue watching\", with the season you watched last",
     ],
 }
 
