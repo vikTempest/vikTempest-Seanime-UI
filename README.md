@@ -22,7 +22,7 @@ Danach die Erweiterung aktivieren und die Berechtigungen bestätigen (AniList, A
 
 Beim ersten Start passieren zwei Dinge:
 
-1. Ein Fenster fragt, welches **Farbschema** du willst. Ein Klick ändert die Farben sofort, „Fertig“ schließt das Fenster. Du kannst es später jederzeit ändern.
+1. Ein kurzer Hinweis zeigt, wo du das **Farbschema** wählst: auf der Seite „VikTempest Seanime UI“, ganz oben unter „Theme“. Ein Klick ändert die Farben sofort. (Früher kam dafür ein Fenster, das Seanime direkt nach der Installation einfrieren konnte.)
 2. Seanime fragt einmal, ob die Erweiterung die „Default episode source“ auf ihren Folgen-Tab setzen darf. Erlaubst du das, öffnet jede Anime-Seite direkt mit der Folgenliste.
 
 **Umstieg von den einzelnen Plugins:** Deinstalliere unter **Extensions** vorher **Season Switcher** und **AniList Custom Ratings**, sonst läuft alles doppelt. Den einzelnen Season Switcher (`season-switcher.json`) gibt es nicht mehr. Hast du das Netflix-Theme unter Einstellungen → User Interface → CSS eingefügt, leere dort die Felder. Deine Bewertungen und Listen liegen auf AniList und bleiben erhalten.
@@ -39,7 +39,7 @@ Alle Einstellungen stehen auf einer eigenen Seite. So kommst du hin:
 - **Season Switcher:** Titel-Sprache, wo das Dropdown steht, alle Staffeln in einer Folgenliste, Serie öffnet deine Staffel, nächste Staffel unter „Continue watching“, Filme/OVAs im Dropdown, Fortschritt im Dropdown, Staffeln zusammenfassen, welche Karte pro Serie, Abzeichen „X Staffeln“, Folgenliste statt Sofort-Stream, Folge anklicken startet Stream
 - **Seitenleiste:** einfahren (nur ein schmaler Rand bleibt, mit der Maus fährt sie heraus) und einzelne Einträge ausblenden, z. B. Manga, Torrent-Liste oder die Suche (die gibt es auch oben und mit Strg+K). Wirkt sofort.
 - **AniList Custom Ratings:** Schrittweite der Pfeiltasten
-- **Extras:** Bildschirmschoner an/aus und nach wie vielen Minuten, Hinweis auf neue Staffeln, Filler-Folgen (normal, abdunkeln, ausblenden), Bewerten nach der letzten Folge, danach zur nächsten Staffel, Weiterschauen, nochmal geschaute Anime in „Weiterschauen“, Rechtsklick-Menü, Schnellsuche
+- **Extras:** Bildschirmschoner an/aus und nach wie vielen Minuten, Hinweis auf neue Staffeln, Filler-Folgen (normal, abdunkeln, ausblenden), Bewerten nach der letzten Folge, danach zur nächsten Staffel, Weiterschauen, nochmal geschaute Anime in „Weiterschauen“, Rechtsklick-Menü, Schnellsuche, Suche in Discover (Alpha, standardmäßig aus: Suchfeld mit Filtern oben auf der Discover-Seite)
 
 Die meisten Einstellungen gelten sofort nach dem Speichern, spätestens beim nächsten Seitenwechsel. Nur die mit „nach Neustart“ markierten (Sprache, Teile an/aus, Folgenliste) brauchen einen Neustart von Seanime, weil sich ein Plugin nicht selbst neu laden kann. „Auf Standard zurücksetzen“ stellt alles auf den Anfang.
 
@@ -111,7 +111,7 @@ Seanime schickt Seitenwechsel von Plugins an alle offenen Geräte. Springt eine 
 ## Für Entwickler
 
 - `viktempest-ui.json`: die installierbare Erweiterung
-- `suite/settings.js`: Einstellungsseite, Farbschemas, Farbwahl beim ersten Start, Laden der Teile
+- `suite/settings.js`: Einstellungsseite, Farbschemas, Hinweis beim ersten Start, Laden der Teile
 - `src/plugin.js`: Season Switcher
 - `src/extras.js`: Extras (Bildschirmschoner, Schlaftimer, neue Staffeln, Filler, Rechtsklick, Bewerten, Schnellsuche)
 - `suite/ratings/plugin.js`: AniList Custom Ratings (Kopie aus dem Repo custom-ratings-.5-options)
