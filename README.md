@@ -2,7 +2,7 @@
 
 Eine Erweiterung für Seanime mit allem drin:
 
-- **Season Switcher:** Staffeln wie eine Serie: eine Karte pro Serie mit deinem Stand, Staffel-Dropdown über der Folgenliste, alle Staffeln in einer Folgenliste, nächste Staffel unter „Continue watching“
+- **Season Switcher:** Staffeln wie eine Serie: eine Karte pro Serie mit deinem Stand, Staffel-Dropdown über der Folgenliste, Folgenliste entweder alle Staffeln in einer Liste (ohne Dropdown) oder pro Staffel (mit Dropdown), nächste Staffel unter „Continue watching“
 - **AniList Custom Ratings:** Bewertungskategorien und Custom Lists
 - **Theme:** schwarzer Netflix-Look in Rot, Lila, Blau oder deinen eigenen Farben
 - **Extras:** Bildschirmschoner, Schlaftimer, Schnellsuche (Strg+K), Hinweis auf neue Staffeln, Filler abdunkeln, Rechtsklick auf Folgen, Bewerten nach der letzten Folge, danach direkt zur nächsten Staffel, Weiterschauen mit einem Klick, nochmal geschaute Anime in „Weiterschauen“
@@ -36,10 +36,10 @@ Alle Einstellungen stehen auf einer eigenen Seite. So kommst du hin:
 
 - **Theme:** Aus, Rot, Lila, Blau oder Eigene (Akzent- und Hintergrundfarbe frei wählbar). Wirkt sofort, ohne Speichern.
 - **Allgemein:** Sprache und jeden Teil einzeln an/aus
-- **Season Switcher:** Titel-Sprache, wo das Dropdown steht, alle Staffeln in einer Folgenliste, Serie öffnet deine Staffel, nächste Staffel unter „Continue watching“, Filme/OVAs im Dropdown, Fortschritt im Dropdown, Staffeln zusammenfassen, welche Karte pro Serie, Abzeichen „X Staffeln“, Folgenliste statt Sofort-Stream, Folge anklicken startet Stream
+- **Season Switcher:** Titel-Sprache, wo das Dropdown steht, Folgenliste entweder alle Staffeln in einer Liste (ohne Dropdown) oder pro Staffel (mit Dropdown), Serie öffnet deine Staffel, nächste Staffel unter „Continue watching“, Filme/OVAs im Dropdown, Fortschritt im Dropdown, Staffeln zusammenfassen, welche Karte pro Serie, Abzeichen „X Staffeln“, Folgenliste statt Sofort-Stream, Folge anklicken startet Stream
 - **Seitenleiste:** einfahren (nur ein schmaler Rand bleibt, mit der Maus fährt sie heraus) und einzelne Einträge ausblenden, z. B. Manga, Torrent-Liste oder die Suche (die gibt es auch oben und mit Strg+K). Wirkt sofort.
 - **AniList Custom Ratings:** Schrittweite der Pfeiltasten
-- **Extras:** Bildschirmschoner an/aus und nach wie vielen Minuten, Hinweis auf neue Staffeln, Filler-Folgen (normal, abdunkeln, ausblenden), Bewerten nach der letzten Folge, danach zur nächsten Staffel, Weiterschauen, nochmal geschaute Anime in „Weiterschauen“, Rechtsklick-Menü, Schnellsuche, Suche in Discover (Alpha, standardmäßig aus: Suchfeld mit Filtern oben auf der Discover-Seite)
+- **Extras:** Bildschirmschoner an/aus und nach wie vielen Minuten, Hinweis auf neue Staffeln, Filler-Folgen (normal, abdunkeln, ausblenden), Bewerten nach der letzten Folge, danach zur nächsten Staffel, Weiterschauen, nochmal geschaute Anime in „Weiterschauen“, Rechtsklick-Menü, Schnellsuche, Suche in Discover (Alpha, standardmäßig aus, nach Neustart: Suchfeld oben auf der Discover-Seite, sucht ab dem ersten Buchstaben, Knopf „Filter“ für Sortierung, Genre, Format, Saison, Jahr, Status)
 
 Die meisten Einstellungen gelten sofort nach dem Speichern, spätestens beim nächsten Seitenwechsel. Nur die mit „nach Neustart“ markierten (Sprache, Teile an/aus, Folgenliste) brauchen einen Neustart von Seanime, weil sich ein Plugin nicht selbst neu laden kann. „Auf Standard zurücksetzen“ stellt alles auf den Anfang.
 
