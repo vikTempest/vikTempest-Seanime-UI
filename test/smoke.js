@@ -2,7 +2,7 @@
 // Usage (from the repository root):  node test/smoke.js
 //
 // It checks that the built payload starts without errors and that the main paths work:
-// settings page, colour schemes, first-start picker, library merge hook, season dropdown with
+// settings page, colour schemes, first-start notice, library merge hook, season dropdown with
 // progress and the episode tab. It does not replace a test in Seanime itself.
 
 const fs = require("fs")
@@ -260,11 +260,14 @@ check("payload compiles and init() runs", () => {
 
 check("UI starts without errors", () => {
     uiFn(ctx)
-    assert.ok(webviews.length >= 2, "settings page and picker expected")
+    assert.ok(webviews.length >= 1, "settings page expected")
 })
 
 const page = webviews.find((w) => w.options.slot === "screen")
-const picker = webviews.find((w) => w.options.slot === "fixed")
+
+check("search in Discover is off by default (Alpha)", () => {
+    assert.ok(!webviews.some((w) => w.options.slot === "after-discover-screen-header"))
+})
 
 check("manifest", () => {
     assert.strictEqual(manifest.id, "viktempest-ui")
@@ -297,15 +300,15 @@ setImmediate(() => {
         assert.strictEqual(init.payload.values.theme, "off")
     })
 
-    check("first start shows the colour picker as a window, not over the whole app", () => {
-        assert.ok(picker, "no picker")
-        assert.ok(picker.options.window.frameless && !/height:100vh/.test(picker.options.style), "picker must not cover the whole app")
-        picker.channel.handlers.ready()
-        assert.ok(picker.channel.sent.some((m) => m.name === "init"))
+    check("first start: no window over the app, a welcome line on the settings page instead", () => {
+        assert.ok(!webviews.some((w) => w.options.slot === "fixed"), "no fixed window on first start")
+        assert.strictEqual(storage.get("vsuite:themeAsked"), true)
+        const init = page.channel.sent.find((m) => m.name === "init")
+        assert.ok(/Farbschema|Colour scheme/.test(init.payload.msg), "welcome line missing: " + init.payload.msg)
     })
 
     check("picking purple applies it right away", () => {
-        picker.channel.handlers.pick({ theme: "purple" })
+        page.channel.handlers.live({ key: "theme", value: "purple" })
     })
 
     setImmediate(() => {
@@ -318,18 +321,15 @@ setImmediate(() => {
             assert.strictEqual(storage.get("vsuite:settings").theme, "purple")
         })
         check("custom colours", () => {
-            picker.channel.handlers.pick({ theme: "custom", accent: "#00ff88", bg: "#101010" })
+            page.channel.handlers.live({ key: "themeAccent", value: "#00ff88" })
+            page.channel.handlers.live({ key: "themeBg", value: "#101010" })
+            page.channel.handlers.live({ key: "theme", value: "custom" })
         })
         setImmediate(() => {
             check("custom accent and background used", () => {
                 const st = themeStyle()
                 assert.ok(st.text.includes("--color-brand-500: 0 255 136"), "custom accent missing")
                 assert.ok(st.text.includes("--background: rgb(16,16,16)"), "custom background missing")
-            })
-            check("Done closes the picker and is remembered", () => {
-                picker.channel.handlers.done()
-                assert.ok(picker.closed)
-                assert.strictEqual(storage.get("vsuite:themeAsked"), true)
             })
             check("live setting on the settings page switches the theme off", () => {
                 page.channel.handlers.live({ key: "theme", value: "off" })
@@ -770,9 +770,31 @@ setImmediate(() => {
                         })
                     }, 80)
                     setTimeout(() => {
+                        // All seasons list: headings and no new requests (at the end, it changes the page)
+                        navigateCb({ pathname: "/entry", searchParams: { id: "2" } })
+                        const own = { episodes: [1, 2].map((n) => ({ type: "main", displayTitle: "Episode " + n, episodeNumber: n, progressNumber: n, baseAnime: { id: 2, isAdult: false } })) }
+                        const before = episodeCollectionCalls
+                        const r = ctx.anime.tab.onEpisodeCollection({ mediaId: 2, episodeCollection: own })
+                        check("all seasons: other seasons are not asked again right away", () => {
+                            assert.ok(r && r.then, "no combined list")
+                            assert.strictEqual(episodeCollectionCalls, before, "episode lists were asked again")
+                        })
+                        const items = [[1, 3], [1, 4], [2, 1], [2, 2], [3, 3]].map((x) => makeElement("div", { "data-media-id": String(x[0]), "data-episode-number": String(x[1]) }))
+                        const heads = []
+                        items.forEach((it) => { it.before = (h) => heads.push({ at: it, head: h }) })
+                        ctx.dom.query = (sel) => Promise.resolve(/data-episode-grid-item/.test(sel) ? items : [])
+                        setTimeout(() => {
+                            observers.filter((o) => /plugin-episode-tab-view/.test(o.sel) && /data-episode-grid-item/.test(o.sel)).forEach((o) => o.cb(items))
+                            setTimeout(() => check("all seasons: a heading in front of every season", () => {
+                                assert.deepStrictEqual(heads.map((h) => h.head.text), ["Staffel 1", "Staffel 2", "Staffel 3"])
+                                assert.ok(heads[1].at === items[2], "season 2 heading before its first episode")
+                            }), 10)
+                        }, 10)
+                    }, 110)
+                    setTimeout(() => {
                         console.log(failures ? "\n" + failures + " failed" : "\nall passed")
                         process.exitCode = failures ? 1 : 0
-                    }, 150)
+                    }, 170)
                 }))
             })
         })

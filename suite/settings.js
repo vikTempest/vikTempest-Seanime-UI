@@ -26,7 +26,7 @@ let vsTrayState = { ctx: null, tray: null, header: null }
 
 // Shared between the parts: extra tray sections, the rating window, whether the colour picker is
 // open, and who wants your list with relations when it was loaded (once a day)
-const vsShare = { traySections: [], rate: null, pickerOpen: false, onWarm: [] }
+const vsShare = { traySections: [], rate: null, onWarm: [] }
 
 // The AniList cache and request limit every part uses (suite/anilist.js, put in by build.py)
 const vsAni = $vsAniLib()
@@ -285,6 +285,9 @@ const VS_FIELDS = [
                       en: "When you watch an anime again that is completed on your list, it shows up under \"Continue watching\" on the home page. Only in Seanime, your AniList list stays as it is." } },
             { key: "episodeMenu", restart: true, default: "yes", label: { de: "Rechtsklick-Menü auf Folgen", en: "Right-click menu on episodes" }, yesNo: true,
               hint: { de: "„Bis hier als gesehen markieren“ und „Online-Stream starten“", en: "\"Mark watched up to here\" and \"Start online stream\"" } },
+            { key: "discoverSearch", restart: true, default: "no", yesNo: true, label: { de: "Suche in Discover (Alpha)", en: "Search in Discover (Alpha)" },
+              hint: { de: "Noch in Arbeit. Oben auf der Discover-Seite ein Suchfeld mit Filtern (Format, Genre, Jahr, Saison, Status, Sortierung). Die Ergebnisse erscheinen direkt darunter, so brauchst du den Eintrag „Suche“ nicht mehr.",
+                      en: "Work in progress. A search field with filters (format, genre, year, season, status, sort) at the top of the Discover page. Results show up right below it, so you don't need the Search entry anymore." } },
             { key: "quickSearch", restart: true, default: "yes", label: { de: "Schnellsuche mit Strg+K", en: "Quick search with Ctrl+K" }, yesNo: true,
               hint: { de: "Deine Liste und Aktionen wie Schlaftimer. Auch über das Symbol oben.", en: "Your list and actions like the sleep timer. Also from the icon at the top." } },
         ],
@@ -309,6 +312,7 @@ const VS_CHANGES = {
         "1.6.1: Nochmal geschaute Serien stehen nur einmal unter „Weiterschauen“, mit der zuletzt geschauten Staffel",
         "1.7.0: Staffeln wie eine Serie: Dropdown über der Folgenliste, alle Staffeln in einer Folgenliste, Karten öffnen die Staffel, bei der du bist, und zeigen deinen Stand, nächste Staffel unter „Continue watching“, eine Karte pro Serie auch in „My lists“",
         "1.7.1: Eingefahrene Seitenleiste verdeckt nichts mehr, die Seite rückt zur Seite, solange sie offen ist",
+        "1.8.0: Kein Einfrieren mehr nach der Installation (Farbwahl jetzt auf der Einstellungsseite statt als Fenster), Staffel-Dropdown nie mehr weiß, Überschrift vor jeder Staffel in der Folgenliste, weniger AniList-Anfragen, Suche in Discover (Alpha, standardmäßig aus)",
     ],
     en: [
         "Colour schemes: red, purple, blue or your own colours, picked on first start",
@@ -326,6 +330,7 @@ const VS_CHANGES = {
         "1.6.1: Rewatched series show up only once under \"Continue watching\", with the season you watched last",
         "1.7.0: Seasons as one series: dropdown above the episode list, all seasons in one episode list, cards open the season you are at and show your progress, next season in \"Continue watching\", one card per series in \"My lists\" too",
         "1.7.1: The slide-away sidebar no longer covers the page, the page moves aside while it is out",
+        "1.8.0: No more freeze after installing (colour scheme now picked on the settings page instead of a window), season dropdown never white, a heading in front of every season in the episode list, fewer AniList requests, search in Discover (Alpha, off by default)",
     ],
 }
 
@@ -686,92 +691,16 @@ const VS_PAGE_HTML = `<!DOCTYPE html>
 </body>
 </html>`
 
-// First start: pick a colour scheme. Shown once as a window over the whole app.
-const VS_PICKER_TEXT = {
-    de: { title: "Welches Farbschema willst du?", intro: "Ein Klick ändert die Farben sofort. Du kannst es später jederzeit auf der Seite „VikTempest Seanime UI“ in der Seitenleiste ändern.",
-          red: "Rot", purple: "Lila", blue: "Blau", custom: "Eigene Farben", off: "Kein Theme", accent: "Akzent", bg: "Hintergrund", done: "Fertig", close: "Schließen",
-          hint: "Die Einstellungen findest du in der linken Seitenleiste unter „VikTempest Seanime UI“. Fehlt der Eintrag direkt nach der Installation, lade Seanime einmal neu (Strg+R)." },
-    en: { title: "Which colour scheme do you want?", intro: "One click changes the colours right away. You can change it any time on the \"VikTempest Seanime UI\" page in the sidebar.",
-          red: "Red", purple: "Purple", blue: "Blue", custom: "Custom colours", off: "No theme", accent: "Accent", bg: "Background", done: "Done", close: "Close",
-          hint: "The settings are in the left sidebar under \"VikTempest Seanime UI\". If the entry is missing right after installing, reload Seanime once (Ctrl+R)." },
+// First start: no window over the app (it froze Seanime while the plugin was busy right after
+// installing). A notice points to the colour schemes at the top of the settings page instead.
+const VS_FIRST_TEXT = {
+    de: { toast: "VikTempest Seanime UI ist installiert. Farbschema wählen: links in der Seitenleiste auf „VikTempest Seanime UI“ (oder Symbol oben). Fehlt der Eintrag, Seanime einmal neu laden (Strg+R).",
+          page: "Willkommen! Wähle oben unter „Farbschema“ deine Farben, sie ändern sich sofort." },
+    en: { toast: "VikTempest Seanime UI is installed. Pick a colour scheme: \"VikTempest Seanime UI\" in the left sidebar (or the icon at the top). If the entry is missing, reload Seanime once (Ctrl+R).",
+          page: "Welcome! Pick your colours under \"Colour scheme\" at the top, they change right away." },
 }
 
-const VS_PICKER_HTML = `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<style>
-  :root { color-scheme: dark; }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; }
-  body { background: #141414; color: #e5e5e5; font: 15px/1.45 Inter, system-ui, -apple-system, "Segoe UI", sans-serif; }
-  .box { position: relative; padding: 24px; border: 1px solid rgba(255,255,255,.1); border-radius: 18px; }
-  .x { position: absolute; top: 14px; right: 14px; width: 34px; height: 34px; border-radius: 99px; border: 0; cursor: pointer;
-       background: rgba(255,255,255,.08); color: #fff; font-size: 18px; line-height: 34px; }
-  .hint { margin: 14px 0 0; font-size: .85rem; color: #8f8f8f; }
-  h1 { margin: 0 34px 6px 0; font-size: 1.45rem; color: #fff; }
-  p { margin: 0 0 20px; color: #a3a3a3; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
-  .tile { border: 2px solid rgba(255,255,255,.1); border-radius: 14px; padding: 10px; cursor: pointer; background: transparent;
-          color: inherit; text-align: left; font: inherit; touch-action: manipulation; }
-  .tile.sel { border-color: #fff; }
-  .prev { height: 74px; border-radius: 9px; padding: 10px; display: flex; flex-direction: column; justify-content: space-between; margin-bottom: 8px; }
-  .prev i { display: block; height: 8px; border-radius: 4px; background: rgba(255,255,255,.18); width: 70%; }
-  .prev b { display: block; height: 18px; width: 54px; border-radius: 6px; }
-  .name { font-weight: 600; color: #fff; }
-  .custom { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
-  .custom label { display: flex; align-items: center; gap: 8px; color: #cfcfcf; }
-  input[type=color] { width: 48px; height: 34px; padding: 2px; border: 1px solid rgba(255,255,255,.15); border-radius: 8px; background: #1c1c1c; }
-  .bar { display: flex; justify-content: flex-end; margin-top: 22px; }
-  .done { background: #fff; color: #000; border: 0; border-radius: 10px; padding: 11px 30px; font-size: 15px; font-weight: 700; cursor: pointer; }
-</style>
-</head>
-<body>
-<div class="box" id="app"></div>
-<script>
-(function () {
-  var d = null, cur = "red", accent = "#e50914", bg = "#0f0f0f";
-  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
-  function tile(key, a, b) {
-    var prev = key === "off"
-      ? "<div class='prev' style='background:#1a1a22'><i></i><b style='background:#6152df'></b></div>"
-      : "<div class='prev' style='background:" + b + "'><i></i><b style='background:" + a + "'></b></div>";
-    return "<button class='tile" + (cur === key ? " sel" : "") + "' data-t='" + key + "'>" + prev + "<div class='name'>" + esc(d.text[key]) + "</div></button>";
-  }
-  function pick() { window.webview.send("pick", { theme: cur, accent: accent, bg: bg }); }
-  function render() {
-    var t = d.text, h = "<button class='x' id='x' title='" + esc(t.close) + "'>×</button><h1>" + esc(t.title) + "</h1><p>" + esc(t.intro) + "</p><div class='grid'>";
-    ["red", "purple", "blue"].forEach(function (k) { h += tile(k, d.schemes[k].accent, d.schemes[k].bg); });
-    h += tile("custom", accent, bg) + tile("off") + "</div>";
-    if (cur === "custom") {
-      h += "<div class='custom'><label>" + esc(t.accent) + " <input type='color' id='ca' value='" + esc(accent) + "'></label>" +
-        "<label>" + esc(t.bg) + " <input type='color' id='cb' value='" + esc(bg) + "'></label></div>";
-    }
-    h += "<p class='hint'>" + esc(t.hint) + "</p><div class='bar'><button class='done' id='done'>" + esc(t.done) + "</button></div>";
-    document.getElementById("app").innerHTML = h;
-    Array.prototype.forEach.call(document.querySelectorAll(".tile"), function (b) {
-      b.addEventListener("click", function () { cur = b.getAttribute("data-t"); pick(); render(); });
-    });
-    var ca = document.getElementById("ca"), cb = document.getElementById("cb");
-    if (ca) ca.addEventListener("change", function () { accent = ca.value; pick(); render(); });
-    if (cb) cb.addEventListener("change", function () { bg = cb.value; pick(); render(); });
-    document.getElementById("done").addEventListener("click", function () { window.webview.send("done", {}); });
-    document.getElementById("x").addEventListener("click", function () { window.webview.send("done", {}); });
-  }
-  function start() {
-    if (!window.webview) { setTimeout(start, 100); return; }
-    window.webview.on("init", function (data) {
-      d = data; cur = data.theme === "off" ? "red" : data.theme; accent = data.accent; bg = data.bg;
-      render(); pick();
-    });
-    window.webview.send("ready", {});
-  }
-  start();
-})();
-</script>
-</body>
-</html>`
+
 
 const VS_SIDEBAR_ICON = "<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z'/><circle cx='12' cy='12' r='3'/></svg>"
 
@@ -853,7 +782,12 @@ function vsSetupUI(ctx) {
         })
     }
 
-    page.channel.on("ready", () => sendInit())
+    page.channel.on("ready", () => {
+        // The first time the page is opened after installing: the welcome line at the top
+        let welcome = ""
+        if (firstStart) { welcome = VS_FIRST_TEXT[pageLang].page; firstStart = false }
+        sendInit(welcome)
+    })
 
     page.channel.on("save", (values) => {
         const next = vsDefaults()
@@ -901,49 +835,13 @@ function vsSetupUI(ctx) {
         sendInit(VS_PAGE_TEXT[pageLang].imported + " " + VS_PAGE_TEXT[pageLang].restart)
     })
 
-    // --- First start: ask for a colour scheme once
-    let asked = false
-    try { asked = $storage.get(VS_THEME_ASKED_KEY) === true } catch (e) {}
-    if (!asked) {
-        // A window in the middle, not a layer over the whole app: Seanime stays usable around it
-        // even while the plugin is busy (AniList requests block it for a moment).
-        const picker = ctx.newWebview({
-            slot: "fixed",
-            zIndex: 9999,
-            autoHeight: true,
-            style: "left:50%;top:50%;transform:translate(-50%,-50%);width:min(720px,calc(100vw - 24px));max-height:calc(100vh - 24px);border-radius:18px;box-shadow:0 20px 60px rgba(0,0,0,.6)",
-            window: { frameless: true },
-        })
-        vsShare.pickerOpen = true
-        picker.setContent(() => VS_PICKER_HTML)
-        picker.channel.on("ready", () => {
-            // Asked once: even if the window is closed some other way, it doesn't come back
-            try { $storage.set(VS_THEME_ASKED_KEY, true) } catch (e) {}
-            const s = vsLoadSettings()
-            picker.channel.send("init", {
-                text: VS_PICKER_TEXT[pageLang],
-                schemes: VS_SCHEMES,
-                theme: s.theme,
-                accent: s.themeAccent || VS_SCHEMES.red.accent,
-                bg: s.themeBg || VS_SCHEMES.red.bg,
-            })
-        })
-        picker.channel.on("pick", (e) => {
-            if (!e) return
-            const next = vsLoadSettings()
-            next.theme = String(e.theme || "off")
-            if (next.theme === "custom") {
-                if (vsHexRgb(e.accent)) next.themeAccent = String(e.accent)
-                if (vsHexRgb(e.bg)) next.themeBg = String(e.bg)
-            }
-            vsSaveSettings(next)
-            applyTheme(next)
-        })
-        picker.channel.on("done", () => {
-            try { $storage.set(VS_THEME_ASKED_KEY, true) } catch (e) {}
-            vsShare.pickerOpen = false
-            picker.close()
-        })
+    // --- First start: a notice instead of a window (see VS_FIRST_TEXT)
+    let firstStart = false
+    try { firstStart = $storage.get(VS_THEME_ASKED_KEY) !== true } catch (e) {}
+    if (firstStart) {
+        try { $storage.set(VS_THEME_ASKED_KEY, true) } catch (e) {}
+        // A few seconds later, when Seanime has finished loading the extension
+        ctx.setTimeout(() => { try { ctx.toast.info(VS_FIRST_TEXT[pageLang].toast) } catch (e) {} }, 4000)
     }
 
     // --- Modules

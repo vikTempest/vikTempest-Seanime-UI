@@ -561,10 +561,15 @@ function init() {
                         wrap.setAttribute("data-place", place)
                         // Layout and sizes (phone and desktop) come from the plugin's style sheet
                         ensureStyle()
+                        // Dark colours also inline: right after installing, the select can be on the
+                        // page before the style sheet, and then it was a white browser box
                         wrap.setInnerHTML(
                             "<span class=\"vtss-label\">" + escapeHtml(t("label")) + "</span>" +
-                            "<select class=\"vtss-select\">" + optionsHtml + "</select>",
+                            "<select class=\"vtss-select\" style=\"color-scheme:dark;background-color:#151515;color:#fff;" +
+                            "border:1px solid rgba(255,255,255,.18);border-radius:.6rem\">" + optionsHtml + "</select>",
                         )
+                        // Another anime was opened meanwhile: this dropdown belongs to the old one
+                        if (state.mediaId !== mediaId) return
                         if (anchor.how === "after") anchor.el.after(wrap)
                         else if (anchor.how === "before") anchor.el.before(wrap)
                         else anchor.el.append(wrap)
@@ -888,6 +893,10 @@ function init() {
             " .vtss-progress-label { position: absolute; bottom: .4rem; right: .35rem; z-index: 4; padding: .1rem .45rem; border-radius: .4rem;" +
             " background: rgba(0,0,0,.7); color: #fff; font-size: .75rem; font-weight: 600; pointer-events: none; }" +
             " .vtss-continue { margin: 0 0 1.75rem; }" +
+            " .vtss-season-head { grid-column: 1 / -1; display: flex; align-items: center; gap: .75rem; margin: 1.25rem 0 .25rem;" +
+            " font-size: 1.15rem; font-weight: 700; color: #fff; }" +
+            " .vtss-season-head:first-child { margin-top: 0; }" +
+            " .vtss-season-head::after { content: \"\"; flex: 1; height: 1px; background: rgba(255,255,255,.12); }" +
             " .vtss-seasons { position: absolute; top: .45rem; left: .45rem; z-index: 11; padding: .1rem .5rem; border-radius: .4rem;" +
             " background: rgba(0,0,0,.72); color: #fff; font-size: .72rem; font-weight: 700; pointer-events: none;" +
             " box-shadow: inset 0 0 0 1px rgb(var(--color-brand-500) / .7); }" +
@@ -1049,12 +1058,13 @@ function init() {
         // watched from the progress of the anime whose page is open, so the episodes of the other
         // seasons get their marks from your list (see markEpisode).
 
-        const merged = { mediaId: 0, list: [], episodes: {}, next: null, pageNext: 0, time: 0 }
+        const merged = { mediaId: 0, list: [], episodes: {}, labels: {}, next: null, pageNext: 0, time: 0 }
 
         function resetMerged() {
             merged.mediaId = 0
             merged.list = []
             merged.episodes = {}
+            merged.labels = {}
             merged.next = null
             merged.pageNext = 0
             merged.time = 0
@@ -1062,6 +1072,67 @@ function init() {
 
         function partLabel(node, k) {
             return SEASON_FORMATS[node.format] ? t("season", k) : (t("formats")[node.format] || node.format || "")
+        }
+
+        // The episode lists of the other seasons. Seanime asks AniList (and its metadata sources)
+        // for each one, so they are kept for a while instead of asked again every time a page opens.
+        const otherCols = {}
+        const OTHER_COL_MS = 30 * 60 * 1000
+        function otherCollection(id) {
+            const c = otherCols[id]
+            if (c && Date.now() - c.time < OTHER_COL_MS) return c.promise
+            let r = null
+            try { r = ctx.anime.getEpisodeCollection(id) }
+            catch (e) {
+                checkRateLimit(e)
+                return Promise.resolve(null)
+            }
+            const promise = Promise.resolve(r).then((col) => plain(col), (e) => {
+                checkRateLimit(e)
+                delete otherCols[id]
+                return null
+            })
+            otherCols[id] = { time: Date.now(), promise: promise }
+            return promise
+        }
+
+        // A heading in front of the first episode of every season, so the seasons are apart
+        // ("Staffel 1", "Staffel 2", ...). The list itself stays Seanime's.
+        const heads = { timer: null, key: "" }
+        function scheduleSeasonHeads() {
+            if (heads.timer) heads.timer()
+            heads.timer = ctx.setTimeout(() => {
+                heads.timer = null
+                seasonHeads()
+            }, 300)
+        }
+        function seasonHeads() {
+            const pageId = state.mediaId
+            const combined = !!merged.mediaId && merged.mediaId === pageId
+            Promise.all([ctx.dom.query(TAB_EPISODE), ctx.dom.query(".vtss-season-head")]).then((res) => {
+                const items = res[0] || [], old = res[1] || []
+                if (state.mediaId !== pageId) return
+                const firsts = []
+                if (combined) {
+                    let prev = null
+                    items.forEach((item) => {
+                        const id = parseInt(String((item.attributes || {})["data-media-id"] || ""), 10)
+                        if (id && id !== prev && merged.labels[id]) firsts.push({ item: item, id: id })
+                        if (id) prev = id
+                    })
+                }
+                // Only one season on this page of the list: no headings needed
+                const want = firsts.length >= 2 || (firsts.length === 1 && firsts[0].id !== pageId) ? firsts : []
+                const key = want.map((f) => f.id + ":" + ((f.item.attributes || {})["data-episode-number"] || "")).join(",")
+                if (key === heads.key && old.length === want.length) return
+                heads.key = key
+                old.forEach((el) => el.remove())
+                return Promise.all(want.map((f) => ctx.dom.createElement("div").then((head) => {
+                    head.setAttribute("class", "vtss-season-head")
+                    head.setText(merged.labels[f.id])
+                    f.item.before(head)
+                })))
+            }).catch((e) => console.warn("season-switcher: season headings", e))
         }
 
         // Returns the combined collection (a promise), or undefined to keep Seanime's own
@@ -1094,16 +1165,16 @@ function init() {
             const st = seriesState(seasonsOf(parts.map((p) => p.node)), entries)
             return Promise.all(parts.map((p) => {
                 if (p.node.id === mediaId) return Promise.resolve(plain(col) || {})
-                let r = null
-                try { r = ctx.anime.getEpisodeCollection(p.node.id) } catch (e) { return Promise.resolve(null) }
-                return Promise.resolve(r).then((c) => plain(c), () => null)
+                return otherCollection(p.node.id)
             })).then((cols) => {
                 const episodes = []
                 const list = []
                 const shown = {}
+                const labels = {}
                 parts.forEach((p, i) => {
                     const id = p.node.id
                     const e = entries[id]
+                    labels[id] = p.label
                     ;((cols[i] && cols[i].episodes) || []).forEach((ep) => {
                         if (!ep || !ep.episodeNumber) return
                         const copy = Object.assign({}, ep)
@@ -1126,6 +1197,7 @@ function init() {
                 if (Object.keys(shown).length < 2) return undefined
                 merged.mediaId = mediaId
                 merged.list = list
+                merged.labels = labels
                 merged.next = st && !st.done && st.season && shown[st.season.id] ? { id: st.season.id, ep: st.progress + 1 } : null
                 merged.pageNext = pageProgress
                 merged.time = Date.now()
@@ -1627,6 +1699,7 @@ function init() {
                 if (elements && elements.length) health("episodes")
                 ;(elements || []).forEach(markEpisode)
                 if (elements && elements.length) scheduleContinue()
+                scheduleSeasonHeads()
             })
             ctx.dom.observe(ONLINE_VIEW, (elements) => {
                 if (elements && elements.length) {

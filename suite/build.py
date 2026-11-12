@@ -8,7 +8,7 @@ Sources:
   suite/ratings/plugin.js     AniList Custom Ratings (copy of the plugin from custom-ratings-.5-options)
   suite/theme/*.css           Netflix theme (desktop and mobile), turned into a theme for any colour scheme
   suite/anilist.js            shared AniList cache and request limit (put in for $vsAniLib())
-  suite/settings.js           settings page, colour schemes, first-start picker, module loader
+  suite/settings.js           settings page, colour schemes, first-start notice, module loader
 
 Each module keeps its own code. The script only renames its init(), routes $ui.register() to the
 module loader and swaps $getUserPreference for a reader of the settings page values.
@@ -18,7 +18,7 @@ import re
 import sys
 
 ROOT = sys.argv[1] if len(sys.argv) > 1 else "."
-VERSION = "1.7.1"
+VERSION = "1.8.0"
 ID = "viktempest-ui"
 ICON = "https://raw.githubusercontent.com/vikTempest/custom-ratings-.5-options/main/icon.png"
 JSON_NAME = "viktempest-ui.json"
