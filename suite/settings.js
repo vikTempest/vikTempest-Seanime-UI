@@ -228,11 +228,13 @@ const VS_FIELDS = [
         section: "switcher", fields: [
             { key: "titleLanguage", default: "english", label: { de: "Titel", en: "Titles" },
               options: [["english", "English"], ["romaji", "Romaji"], ["native", "Native / 日本語"]] },
-            { key: "switcherPlace", default: "episodes", label: { de: "Wo das Staffel-Dropdown steht", en: "Where the season dropdown goes" },
+            { key: "switcherPlace", default: "episodes", showIf: ["allSeasons", "no"], label: { de: "Wo das Staffel-Dropdown steht", en: "Where the season dropdown goes" },
               options: [["episodes", { de: "Unter den Knöpfen, über den Folgen", en: "Below the buttons, above the episodes" }], ["title", { de: "Unter dem Titel", en: "Below the title" }]] },
-            { key: "allSeasons", default: "yes", label: { de: "Alle Staffeln in einer Folgenliste", en: "All seasons in one episode list" }, yesNo: true,
-              hint: { de: "Die Folgenliste zeigt Staffel 1, 2, 3 … untereinander. Ein Klick startet die Folge der richtigen Staffel, AniList zählt sie dort.",
-                      en: "The episode list shows season 1, 2, 3 … one after the other. A click starts the episode of the right season, AniList counts it there." } },
+            { key: "allSeasons", default: "yes", label: { de: "Folgenliste", en: "Episode list" },
+              options: [["yes", { de: "Alle Staffeln in einer Liste, ohne Dropdown", en: "All seasons in one list, no dropdown" }],
+                        ["no", { de: "Pro Staffel, mit Staffel-Dropdown", en: "One season at a time, with the season dropdown" }]],
+              hint: { de: "Entweder oder. Eine Liste: Staffel 1, 2, 3 … untereinander mit Überschrift, ein Klick startet die Folge der richtigen Staffel. Pro Staffel: jede Staffel für sich, du wechselst mit dem Dropdown. Filme ohne Staffel-Liste behalten das Dropdown.",
+                      en: "Either or. One list: season 1, 2, 3 … one after the other with a heading, a click starts the episode of the right season. One season at a time: you switch with the dropdown. Movies without a season list keep the dropdown." } },
             { key: "openCurrent", default: "yes", label: { de: "Serie öffnet die Staffel, bei der du bist", en: "A series opens the season you are at" }, yesNo: true,
               hint: { de: "Ein Klick auf eine Karte öffnet die Staffel, die du gerade schaust (oder die nächste nach der letzten fertigen).",
                       en: "Clicking a card opens the season you are watching (or the one after the last you finished)." } },
@@ -286,8 +288,8 @@ const VS_FIELDS = [
             { key: "episodeMenu", restart: true, default: "yes", label: { de: "Rechtsklick-Menü auf Folgen", en: "Right-click menu on episodes" }, yesNo: true,
               hint: { de: "„Bis hier als gesehen markieren“ und „Online-Stream starten“", en: "\"Mark watched up to here\" and \"Start online stream\"" } },
             { key: "discoverSearch", restart: true, default: "no", yesNo: true, label: { de: "Suche in Discover (Alpha)", en: "Search in Discover (Alpha)" },
-              hint: { de: "Noch in Arbeit. Oben auf der Discover-Seite ein Suchfeld mit Filtern (Format, Genre, Jahr, Saison, Status, Sortierung). Die Ergebnisse erscheinen direkt darunter, so brauchst du den Eintrag „Suche“ nicht mehr.",
-                      en: "Work in progress. A search field with filters (format, genre, year, season, status, sort) at the top of the Discover page. Results show up right below it, so you don't need the Search entry anymore." } },
+              hint: { de: "Noch in Arbeit. Oben auf der Discover-Seite ein Suchfeld, der Anime/Schedule/Manga-Schalter rückt nach rechts. Ab dem ersten Buchstaben erscheinen die Ergebnisse statt der Discover-Reihen. Der Knopf „Filter“ öffnet Sortierung, Genre, Format, Saison, Jahr und Status. Gilt nach einem Neustart von Seanime.",
+                      en: "Work in progress. A search field at the top of the Discover page, the Anime/Schedule/Manga switch moves to the right. From the first letter the results replace the Discover rows. The \"Filters\" button opens sort, genre, format, season, year and status. Applies after restarting Seanime." } },
             { key: "quickSearch", restart: true, default: "yes", label: { de: "Schnellsuche mit Strg+K", en: "Quick search with Ctrl+K" }, yesNo: true,
               hint: { de: "Deine Liste und Aktionen wie Schlaftimer. Auch über das Symbol oben.", en: "Your list and actions like the sleep timer. Also from the icon at the top." } },
         ],
@@ -313,6 +315,7 @@ const VS_CHANGES = {
         "1.7.0: Staffeln wie eine Serie: Dropdown über der Folgenliste, alle Staffeln in einer Folgenliste, Karten öffnen die Staffel, bei der du bist, und zeigen deinen Stand, nächste Staffel unter „Continue watching“, eine Karte pro Serie auch in „My lists“",
         "1.7.1: Eingefahrene Seitenleiste verdeckt nichts mehr, die Seite rückt zur Seite, solange sie offen ist",
         "1.8.0: Kein Einfrieren mehr nach der Installation (Farbwahl jetzt auf der Einstellungsseite statt als Fenster), Staffel-Dropdown nie mehr weiß, Überschrift vor jeder Staffel in der Folgenliste, weniger AniList-Anfragen, Suche in Discover (Alpha, standardmäßig aus)",
+        "1.9.0: Folgenliste entweder oder: alle Staffeln in einer Liste ohne Dropdown, oder pro Staffel mit Dropdown. Ausgeblendete Seitenleisten-Einträge bleiben auch nach Neuinstallation weg. Discover-Suche (Alpha) jetzt oben an der Stelle des Anime/Schedule/Manga-Schalters, mit Filter-Knopf, sucht ab dem ersten Buchstaben",
     ],
     en: [
         "Colour schemes: red, purple, blue or your own colours, picked on first start",
@@ -331,6 +334,7 @@ const VS_CHANGES = {
         "1.7.0: Seasons as one series: dropdown above the episode list, all seasons in one episode list, cards open the season you are at and show your progress, next season in \"Continue watching\", one card per series in \"My lists\" too",
         "1.7.1: The slide-away sidebar no longer covers the page, the page moves aside while it is out",
         "1.8.0: No more freeze after installing (colour scheme now picked on the settings page instead of a window), season dropdown never white, a heading in front of every season in the episode list, fewer AniList requests, search in Discover (Alpha, off by default)",
+        "1.9.0: Episode list either or: all seasons in one list without the dropdown, or one season at a time with the dropdown. Hidden sidebar entries stay hidden after reinstalling. Discover search (Alpha) now at the top where the Anime/Schedule/Manga switch was, with a filter button, searches from the first letter",
     ],
 }
 
@@ -393,7 +397,9 @@ function vsLayoutCss(s) {
     let css = ""
     const hide = String((s && s.sidebarHide) || "").split(",").filter((x) => VS_SIDEBAR_IDS.indexOf(x) >= 0)
     if (hide.length) {
-        css += hide.map((id) => ":is(a, button):has([data-vertical-menu-item-id=\"" + id + "\"]), [data-vertical-menu-item-id=\"" + id + "\"]").join(",\n") +
+        // In the bar itself, and as a link in its "more" menu (Seanime moves entries there)
+        css += hide.map((id) => ":is(a, button):has([data-vertical-menu-item-id=\"" + id + "\"]), [data-vertical-menu-item-id=\"" + id + "\"], " +
+            ".UI-AppLayoutSidebar__root a[href=\"/" + id + "\"], [role=menu] :is(a[href=\"/" + id + "\"], [role=menuitem]:has(a[href=\"/" + id + "\"]))").join(",\n") +
             " { display: none !important; }\n"
     }
     if (s && s.sidebarAutoHide === "yes") {
@@ -727,6 +733,18 @@ function vsSetupUI(ctx) {
     // The style element is lost when the page reloads, so it is added again when a tab is ready.
     // (onNavigate and onReady are left to the modules.)
     ctx.dom.onMainTabReady(() => { const s = vsLoadSettings(); applyTheme(s, true); applyLayout(s, true) })
+    // Also on every page change: when the style element was lost (e.g. right after installing or
+    // updating, before Seanime's page was ready), it is added again. Only checks, adds when missing.
+    function healStyles() {
+        const s = vsLoadSettings()
+        ;[["data-vsuite-theme", themeCss(s)], ["data-vsuite-layout", vsLayoutCss(s)]].forEach((x) => {
+            if (!x[1]) return
+            ctx.dom.queryOne("[" + x[0] + "]").then((el) => { if (!el) vsSetStyle(ctx, x[0], x[1]) }).catch(() => {})
+        })
+    }
+    ctx.dom.onReady(() => healStyles())
+    ctx.screen.onNavigate(() => healStyles())
+    ctx.setTimeout(() => healStyles(), 3000)
     applyTheme(settings, true)
 
     // --- Sidebar: slide away and hide entries (also applies right away)

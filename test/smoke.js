@@ -373,11 +373,21 @@ setImmediate(() => {
                 check("list with relations loaded once a day", () => {
                     assert.strictEqual(warmCalls, 1)
                 })
+                check("all seasons in one list: no dropdown (either or)", () => {
+                    created.length = 0
+                    navigateCb({ pathname: "/entry", searchParams: { id: "2" } })
+                    assert.ok(!created.some((c) => c.attributes && c.attributes.class === "vtss-switcher"), "dropdown should be off")
+                    navigateCb({ pathname: "/", searchParams: {} })
+                })
                 check("season dropdown with progress", () => {
+                    const st = Object.assign({}, store.get("vsuite:settings") || {}, { allSeasons: "no" })
+                    store.set("vsuite:settings", st)
                     navigateCb({ pathname: "/entry", searchParams: { id: "2" } })
                 })
                 setImmediate(() => setImmediate(() => {
                     check("dropdown content", () => {
+                        const st = Object.assign({}, store.get("vsuite:settings") || {}, { allSeasons: "yes" })
+                        store.set("vsuite:settings", st)
                         const wrap = created.find((c) => c.attributes && c.attributes.class === "vtss-switcher")
                         assert.ok(wrap, "dropdown not added")
                         assert.ok(wrap.html.includes("✓ Show (2020)"), "finished season mark missing: " + wrap.html)

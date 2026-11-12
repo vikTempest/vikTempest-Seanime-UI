@@ -522,7 +522,14 @@ function init() {
                 })
             })
         }
-        const state = { mediaId: 0, options: null, injecting: false, pathname: "" }
+        const state = { mediaId: 0, options: null, injecting: false, pathname: "", single: 0 }
+        const combinedMode = () => pref("allSeasons", "yes") === "yes"
+        // No combined list for this anime: the dropdown is shown after all
+        function noCombinedList(mediaId) {
+            if (!mediaId || state.single === mediaId) return
+            state.single = mediaId
+            if (state.mediaId === mediaId) inject()
+        }
 
         function removeSwitchers() {
             return ctx.dom.query(".vtss-switcher")
@@ -534,6 +541,12 @@ function init() {
             const mediaId = state.mediaId
             const options = state.options
             if (!mediaId || !options || options.length < 2 || state.injecting) return
+            // Either or: with all seasons in one list (headings per season) there is no dropdown.
+            // Only when this anime has no combined list (e.g. a movie) the dropdown stays.
+            if (combinedMode() && state.single !== mediaId) {
+                removeSwitchers()
+                return
+            }
             state.injecting = true
 
             ctx.dom.queryOne(".vtss-switcher")
@@ -1213,11 +1226,16 @@ function init() {
             icon: "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor' width='18' height='18'><path d='M4 5h16v2H4zm0 6h10v2H4zm0 6h10v2H4zm13-5 5 3.5-5 3.5z'/></svg>",
             shouldShow: () => true,
             onEpisodeCollection: (e) => {
-                try { return allSeasonsCollection(e && e.mediaId, e && e.episodeCollection) }
+                const id = e && e.mediaId
+                let r
+                try { r = allSeasonsCollection(id, e && e.episodeCollection) }
                 catch (err) {
                     console.warn("season-switcher: all seasons list", err)
-                    return undefined
+                    r = undefined
                 }
+                if (r === undefined) noCombinedList(id)
+                else Promise.resolve(r).then((c) => { if (c === undefined) noCombinedList(id) }, () => noCombinedList(id))
+                return r
             },
             onSelectEpisode: (e) => {
                 if (!e || !e.episodeNumber) return
