@@ -208,6 +208,14 @@ const $anilist = {
     },
     getRawAnimeCollection() { return { MediaListCollection: { lists: [] } } },
     getRawMangaCollection() { return { MediaListCollection: { lists: [] } } },
+    getMangaCollection() {
+        return { MediaListCollection: { lists: [{ entries: [
+            { status: "CURRENT", progress: 10, updatedAt: 100, media: { id: 501, chapters: 100, genres: ["Romance"], title: { english: "Old Read" } } },
+            { status: "CURRENT", progress: 3, updatedAt: 300, media: { id: 502, chapters: 0, genres: ["Romance"], title: { english: "New Read" } } },
+            { status: "PLANNING", progress: 0, updatedAt: 50, media: { id: 503, title: { english: "Later Read" } } },
+        ] }] } }
+    },
+    addMediaToCollection(ids) { plannedManga.push(...ids) },
     refreshAnimeCollection() {}, refreshMangaCollection() {},
     getAnimeCollectionWithRelations() {
         warmCalls++
@@ -219,6 +227,7 @@ const $anilist = {
     updateEntryProgress(id, progress) { progressUpdates.push([id, progress]) },
 }
 const progressUpdates = []
+const plannedManga = []
 
 // Seanime loads the payload in one runtime and then runs the $ui.register() callback and every
 // hook in other runtimes, compiled from their source text only. The test does the same, so code
@@ -267,6 +276,36 @@ const page = webviews.find((w) => w.options.slot === "screen")
 
 check("search in Discover is off by default (Alpha)", () => {
     assert.ok(!webviews.some((w) => w.options.slot === "after-discover-screen-header"))
+})
+
+const mangaView = webviews.find((w) => w.options.slot === "manga-screen-bottom")
+check("manga page: rows webview with your list, newest first", () => {
+    assert.ok(mangaView, "manga rows webview missing")
+    assert.ok(/Weiterlesen/.test(mangaView.content) || /continue/.test(mangaView.content))
+    mangaView.channel.handlers.ready()
+    const init = mangaView.channel.sent.filter((m) => m.name === "init").pop()
+    assert.ok(init, "no init")
+    assert.strictEqual(init.payload.text.continue, "Weiterlesen")
+    assert.deepStrictEqual(init.payload.entries.map((e) => e.media.id), [501, 502, 503])
+    assert.strictEqual(init.payload.rows[0].id, "continue")
+    // the page script parses
+    const script = mangaView.content.split("<script>")[1].split("</script>")[0]
+    new Function(script)
+})
+check("manga page: customize, hide and plan", () => {
+    const rows = [{ id: "trending", on: true }, { id: "continue", on: true }, { id: "genre:Romance", on: true }, { id: "genre:<b>", on: true }]
+    mangaView.channel.handlers.config({ rows })
+    const init = mangaView.channel.sent.filter((m) => m.name === "init").pop()
+    assert.deepStrictEqual(init.payload.rows.slice(0, 3).map((r) => r.id), ["trending", "continue", "genre:Romance"])
+    assert.ok(!init.payload.rows.some((r) => r.id === "genre:<b>"), "bad genre id kept")
+    assert.ok(init.payload.rows.some((r) => r.id === "new"), "default rows appended")
+    mangaView.channel.handlers.hide({ id: 501, progress: 10, title: "Old Read" })
+    assert.strictEqual(storage.get("vsm:hidden")["501"], 10)
+    mangaView.channel.handlers.plan({ id: 777, title: "X" })
+    assert.deepStrictEqual(plannedManga, [777])
+    mangaView.channel.handlers.config({ reset: true })
+    const again = mangaView.channel.sent.filter((m) => m.name === "init").pop()
+    assert.strictEqual(again.payload.rows[0].id, "continue")
 })
 
 check("manifest", () => {

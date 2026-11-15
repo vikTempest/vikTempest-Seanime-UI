@@ -7,6 +7,7 @@ Eine Erweiterung für Seanime mit allem drin:
 - **Theme:** schwarzer Netflix-Look in Rot, Lila, Blau oder deinen eigenen Farben
 - **Extras:** Bildschirmschoner, Schlaftimer, Schnellsuche (Strg+K), Hinweis auf neue Staffeln, Filler abdunkeln, Rechtsklick auf Folgen, Bewerten nach der letzten Folge, danach direkt zur nächsten Staffel, Weiterschauen mit einem Klick, nochmal geschaute Anime in „Weiterschauen“
 - **Seitenleiste:** einfahren lassen und Einträge ausblenden
+- **Manga-Seite:** Reihen wie auf der Startseite (Weiterlesen, neue, beliebte Manga, Genres), selbst anpassbar
 
 Sprachen: Deutsch, English, Español, Português, 日本語
 
@@ -38,6 +39,7 @@ Alle Einstellungen stehen auf einer eigenen Seite. So kommst du hin:
 - **Allgemein:** Sprache und jeden Teil einzeln an/aus
 - **Season Switcher:** Titel-Sprache, wo das Dropdown steht, Folgenliste entweder alle Staffeln in einer Liste (ohne Dropdown) oder pro Staffel (mit Dropdown), Serie öffnet deine Staffel, nächste Staffel unter „Continue watching“, Filme/OVAs im Dropdown, Fortschritt im Dropdown, Staffeln zusammenfassen, welche Karte pro Serie, Abzeichen „X Staffeln“, Folgenliste statt Sofort-Stream, Folge anklicken startet Stream
 - **Seitenleiste:** einfahren (nur ein schmaler Rand bleibt, mit der Maus fährt sie heraus) und einzelne Einträge ausblenden, z. B. Manga, Torrent-Liste oder die Suche (die gibt es auch oben und mit Strg+K). Wirkt sofort.
+- **Manga-Seite:** ob Seanimes eigene Manga-Listen unter den Reihen bleiben (ohne „Continue reading“, alle oder keine). Welche Reihen oben stehen, stellst du auf der Manga-Seite selbst mit „Anpassen“ ein.
 - **AniList Custom Ratings:** Schrittweite der Pfeiltasten
 - **Extras:** Bildschirmschoner an/aus und nach wie vielen Minuten, Hinweis auf neue Staffeln, Filler-Folgen (normal, abdunkeln, ausblenden), Bewerten nach der letzten Folge, danach zur nächsten Staffel, Weiterschauen, nochmal geschaute Anime in „Weiterschauen“, Rechtsklick-Menü, Schnellsuche, Suche in Discover (Alpha, standardmäßig aus, nach Neustart: Suchfeld oben auf der Discover-Seite, sucht ab dem ersten Buchstaben, Knopf „Filter“ für Sortierung, Genre, Format, Saison, Jahr, Status)
 
@@ -102,6 +104,20 @@ AniList erlaubt nur 30 Anfragen pro Minute, und Seanime braucht die meisten davo
 
 **Schnellsuche:** Strg+K (am Mac Cmd+K) sucht in deiner Liste, zeigt oben „Weiterschauen“ und bietet Aktionen wie Schlaftimer oder Einstellungen. Im Browser kann Strg+K schon belegt sein, dann geht es über das Symbol oben.
 
+## Manga-Seite
+
+Die Manga-Seite sieht jetzt aus wie die Startseite: Das große Bild oben bleibt, darunter stehen Reihen zum Durchscrollen (mit Pfeilen oder Wischen):
+
+- **Weiterlesen:** was du gerade liest oder nochmal liest, zuletzt gelesenes zuerst, mit „Weiter mit Kapitel X“ und Fortschrittsbalken
+- **Neue Manga** (im letzten Jahr gestartet), **Gerade beliebt**, **Weil du gerne … liest** (dein häufigstes Genre, ohne Manga, die schon auf deiner Liste sind), **Geplant**, **Beliebteste Manga**, **Bestbewertet**
+- zum Einschalten: **Manhwa (Korea)**, **Pausiert**, **Fertig gelesen** und eigene **Genre-Reihen** (z. B. Romance, Action)
+
+Oben rechts auf **„Anpassen“** klicken: Reihen per Haken ein- und ausschalten, mit den Pfeilen die Reihenfolge ändern, Genre-Reihen hinzufügen oder entfernen, „Standard“ stellt alles zurück. Karten, die schon auf deiner Liste sind, tragen oben links deinen Status.
+
+**Rechtsklick** (am Handy lange drücken) auf eine Karte: „Öffnen“, bei „Weiterlesen“ **„Aus ‚Weiterlesen‘ ausblenden“** (nur in Seanime, deine AniList-Liste bleibt gleich; liest du weiter, ist der Manga wieder da, „Anpassen“ holt alle ausgeblendeten zurück) und bei Manga, die nicht auf deiner Liste sind, „Zu ‚Geplant‘ hinzufügen“.
+
+Seanimes eigene Listen (Geplant, Fertig usw.) stehen weiter darunter, nur das doppelte „Continue reading“ ist weg. Das lässt sich in den Einstellungen unter „Manga-Seite“ ändern. Deine eigenen Reihen kommen aus Seanimes Speicher, für die anderen Reihen fragt die Seite AniList einmal und merkt sich das Ergebnis 6 Stunden.
+
 ## Auf dem Handy
 
 Die Erweiterung läuft auf dem Seanime-Server und funktioniert deshalb auch im Handy-Browser, ohne extra Einstellung. Das Staffel-Dropdown nutzt dort die ganze Breite und ist groß genug zum Tippen.
@@ -114,6 +130,7 @@ Seanime schickt Seitenwechsel von Plugins an alle offenen Geräte. Springt eine 
 - `suite/settings.js`: Einstellungsseite, Farbschemas, Hinweis beim ersten Start, Laden der Teile
 - `src/plugin.js`: Season Switcher
 - `src/extras.js`: Extras (Bildschirmschoner, Schlaftimer, neue Staffeln, Filler, Rechtsklick, Bewerten, Schnellsuche)
+- `src/manga.js`: Manga-Seite mit Reihen wie auf der Startseite
 - `suite/ratings/plugin.js`: AniList Custom Ratings (Kopie aus dem Repo custom-ratings-.5-options)
 - `suite/theme/`: Netflix-Theme (Desktop und Handy). Die Dateien bleiben direkt als Custom CSS nutzbar. Beim Bauen werden die festen Farben durch die Farben des gewählten Schemas ersetzt.
 - `test/smoke.js`: startet die Erweiterung mit nachgebauten Seanime-Schnittstellen und prüft die wichtigsten Abläufe
