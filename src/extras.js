@@ -79,6 +79,7 @@ function init() {
                 status: { CURRENT: "schaue ich", PLANNING: "geplant", COMPLETED: "fertig", PAUSED: "pausiert", DROPPED: "abgebrochen", REPEATING: "nochmal" },
                 menuWatched: "Bis hier als gesehen markieren", menuPlay: "Online-Stream starten", menuWatchedDone: "Fortschritt auf {0} gesetzt.",
                 menuFailed: "Konnte den Fortschritt nicht speichern: {0}",
+                rwRemove: "Aus „Weiterschauen“ entfernen", rwRemoved: "{0} steht nicht mehr unter „Weiterschauen“.", rwOnlyRewatch: "Entfernen geht nur bei Anime, die du nochmal schaust. Was du gerade schaust („Watching“), bleibt drin.", rwCounted: "Nochmal geschaut: {0} ({1}×) ist auf AniList eingetragen.",
                 rateAsk: "Letzte Folge von „{0}“ geschafft. Wie fandest du es?",
                 nextGo: "Weiter mit der nächsten Staffel: {0}", nextSoon: "Die nächste Staffel „{0}“ {1}.", nextSoonDate: "startet am {0}", nextSoonNoDate: "ist angekündigt", contTitle: "Weiterschauen", contEp: "Folge {0}", contAction: "Weiterschauen: {0}",
             },
@@ -94,6 +95,7 @@ function init() {
                 status: { CURRENT: "watching", PLANNING: "planning", COMPLETED: "completed", PAUSED: "paused", DROPPED: "dropped", REPEATING: "rewatching" },
                 menuWatched: "Mark watched up to here", menuPlay: "Start online stream", menuWatchedDone: "Progress set to {0}.",
                 menuFailed: "Could not save the progress: {0}",
+                rwRemove: "Remove from \"Continue watching\"", rwRemoved: "{0} is no longer under \"Continue watching\".", rwOnlyRewatch: "Only anime you are rewatching can be removed. What you are watching (\"Watching\") stays.", rwCounted: "Rewatch of {0} ({1}×) saved on AniList.",
                 rateAsk: "You finished \"{0}\". How did you like it?",
                 nextGo: "On to the next season: {0}", nextSoon: "The next season \"{0}\" {1}.", nextSoonDate: "starts on {0}", nextSoonNoDate: "is announced", contTitle: "Continue watching", contEp: "Episode {0}", contAction: "Continue: {0}",
             },
@@ -109,6 +111,7 @@ function init() {
                 status: { CURRENT: "viendo", PLANNING: "planeado", COMPLETED: "completado", PAUSED: "en pausa", DROPPED: "abandonado", REPEATING: "repitiendo" },
                 menuWatched: "Marcar visto hasta aquí", menuPlay: "Ver en streaming", menuWatchedDone: "Progreso: {0}.",
                 menuFailed: "No se pudo guardar el progreso: {0}",
+                rwRemove: "Quitar de \"Seguir viendo\"", rwRemoved: "{0} ya no está en \"Seguir viendo\".", rwOnlyRewatch: "Solo se pueden quitar los anime que vuelves a ver. Lo que estás viendo (\"Watching\") se queda.", rwCounted: "Revisionado: {0} ({1}×) guardado en AniList.",
                 rateAsk: "Terminaste \"{0}\". ¿Qué te pareció?",
                 nextGo: "Siguiente temporada: {0}", nextSoon: "La siguiente temporada \"{0}\" {1}.", nextSoonDate: "empieza el {0}", nextSoonNoDate: "está anunciada", contTitle: "Seguir viendo", contEp: "Episodio {0}", contAction: "Seguir: {0}",
             },
@@ -124,6 +127,7 @@ function init() {
                 status: { CURRENT: "assistindo", PLANNING: "planejado", COMPLETED: "completo", PAUSED: "pausado", DROPPED: "largado", REPEATING: "reassistindo" },
                 menuWatched: "Marcar assistido até aqui", menuPlay: "Assistir online", menuWatchedDone: "Progresso: {0}.",
                 menuFailed: "Não foi possível salvar o progresso: {0}",
+                rwRemove: "Remover de \"Continuar assistindo\"", rwRemoved: "{0} não está mais em \"Continuar assistindo\".", rwOnlyRewatch: "Só dá para remover anime que você está revendo. O que você está assistindo (\"Watching\") fica.", rwCounted: "Revisto: {0} ({1}×) salvo no AniList.",
                 rateAsk: "Você terminou \"{0}\". O que achou?",
                 nextGo: "Próxima temporada: {0}", nextSoon: "A próxima temporada \"{0}\" {1}.", nextSoonDate: "começa em {0}", nextSoonNoDate: "foi anunciada", contTitle: "Continuar assistindo", contEp: "Episódio {0}", contAction: "Continuar: {0}",
             },
@@ -139,6 +143,7 @@ function init() {
                 status: { CURRENT: "視聴中", PLANNING: "予定", COMPLETED: "完了", PAUSED: "一時停止", DROPPED: "中断", REPEATING: "再視聴" },
                 menuWatched: "ここまで視聴済みにする", menuPlay: "オンラインで再生", menuWatchedDone: "進捗を{0}にしました。",
                 menuFailed: "進捗を保存できませんでした: {0}",
+                rwRemove: "「続きを見る」から削除", rwRemoved: "{0} を「続きを見る」から削除しました。", rwOnlyRewatch: "削除できるのは見返している作品だけです。視聴中（Watching）の作品はそのままです。", rwCounted: "再視聴: {0}（{1}回）を AniList に保存しました。",
                 rateAsk: "「{0}」を見終わりました。評価しますか？",
                 nextGo: "次のシーズンへ: {0}", nextSoon: "次のシーズン「{0}」は{1}。", nextSoonDate: "{0}開始", nextSoonNoDate: "発表済み", contTitle: "続きを見る", contEp: "第{0}話", contAction: "続きを見る: {0}",
             },
@@ -597,6 +602,12 @@ function init() {
         const RW_DONE = 0.8
         const LIBRARY_QUERY = "ANIME-COLLECTION-get-library-collection"
         const rw = { sig: null, busy: false, episodes: {} }
+        // Removed by right-click: mediaId -> time of the watch history it was removed at (it comes
+        // back when you watch it again later). seen/counted: for the rewatch count on AniList.
+        const RW_HIDDEN = "vsx:rewatchHidden", RW_SEEN = "vsx:rewatchSeen", RW_COUNTED = "vsx:rewatchCounted"
+        function rwLoad(k) { try { return $storage.get(k) || {} } catch (e) { return {} } }
+        function rwSave(k, v) { try { $storage.set(k, v) } catch (e) {} }
+        const rwHidden = rwLoad(RW_HIDDEN), rwSeen = rwLoad(RW_SEEN), rwCounted = rwLoad(RW_COUNTED)
         try {
             const saved = $storage.get(RW_KEY)
             if (saved && saved.items) {
@@ -668,7 +679,9 @@ function init() {
                 const done = h.duration > 0 && h.currentTime / h.duration >= RW_DONE
                 const ep = done ? h.episodeNumber + 1 : h.episodeNumber
                 const total = m.episodes || (m.nextAiringEpisode && m.nextAiringEpisode.episode ? m.nextAiringEpisode.episode - 1 : 0)
+                rewatchCount(entry, h, time, total, done)
                 if (total && ep > total) return
+                if (rwHidden[h.mediaId] && time <= rwHidden[h.mediaId]) return
                 out.push({ mediaId: h.mediaId, ep: ep, time: time, title: titleOf(m), media: m })
             })
             out.sort((a, b) => b.time - a.time)
@@ -683,6 +696,61 @@ function init() {
                 one.push(c)
             })
             return one.slice(0, RW_MAX)
+        }
+
+        // Rewatch count on AniList: you played an earlier episode of a "Completed" anime and now
+        // finished its last episode again -> "Rewatches" (repeat) + 1. The status stays
+        // "Completed", so it doesn't show up as "Watching" on your list. Only once per rewatch, and
+        // not on the first watch (the anime wasn't "Completed" while you watched the earlier
+        // episodes then).
+        function rewatchCount(entry, h, time, total, done) {
+            const id = h.mediaId
+            if (!total) return
+            if (h.episodeNumber < total) {
+                if (!rwSeen[id] || rwSeen[id] < time) { rwSeen[id] = time; rwSave(RW_SEEN, rwSeen) }
+                return
+            }
+            if (h.episodeNumber !== total || !done || !rwSeen[id]) return
+            if (rwCounted[id] && rwCounted[id] >= rwSeen[id]) return
+            if (pref("rewatchCount", "yes") !== "yes") return
+            const repeat = (entry.repeat || 0) + 1
+            try {
+                $anilist.updateEntryRepeat(id, repeat)
+                rwCounted[id] = time
+                rwSave(RW_COUNTED, rwCounted)
+                delete rwSeen[id]
+                rwSave(RW_SEEN, rwSeen)
+                entry.repeat = repeat
+                ctx.toast.success(t("rwCounted", titleOf(entry.media), repeat))
+                try { $anilist.refreshAnimeCollection() } catch (e) {}
+            }
+            catch (e) {
+                console.warn("viktempest-ui extras: rewatch count", e)
+            }
+        }
+
+        // Right-click on a card in "Continue watching": takes a rewatch out (not anime you are
+        // watching, those are Seanime's own and stay)
+        function rewatchRemove(episode) {
+            const id = episode && episode.baseAnime && episode.baseAnime.id
+            const it = rewatchItems().filter((x) => x.mediaId === id)[0]
+            if (!it) {
+                ctx.toast.info(t("rwOnlyRewatch"))
+                return
+            }
+            ;(it.group && it.group.length ? it.group : [id]).forEach((g) => { rwHidden[g] = Math.max(rwHidden[g] || 0, it.time) })
+            rwSave(RW_HIDDEN, rwHidden)
+            rw.sig = null
+            rewatchSync()
+            ctx.toast.success(t("rwRemoved", it.title || ""))
+        }
+        try {
+            const removeItem = ctx.action.newEpisodeCardContextMenuItem({ label: t("rwRemove") })
+            removeItem.mount()
+            removeItem.onClick((e) => rewatchRemove(e && e.episode))
+        }
+        catch (e) {
+            console.warn("viktempest-ui extras: rewatch menu", e)
         }
 
         // The episode as Seanime builds it for its own lists (title, picture), or a simple one
@@ -717,8 +785,12 @@ function init() {
         }
 
         function rewatchSync() {
-            if (rw.busy) return
-            const cands = pref("rewatchContinue", "yes") === "yes" ? rewatchCandidates() : []
+            // Asked again while busy: once more right after
+            if (rw.busy) { rw.again = true; return }
+            // The candidates also drive the rewatch count, so they are looked at when either is on
+            const on = pref("rewatchContinue", "yes") === "yes"
+            let cands = on || pref("rewatchCount", "yes") === "yes" ? rewatchCandidates() : []
+            if (!on) cands = []
             const sig = cands.map((c) => c.mediaId + ":" + c.ep).join(",")
             if (sig === rw.sig) return
             rw.busy = true
@@ -729,6 +801,7 @@ function init() {
                     try { $storage.set(RW_KEY, data) } catch (e) {}
                     rw.sig = sig
                     rw.busy = false
+                    if (rw.again) { rw.again = false; rewatchSync() }
                     // Old episodes that aren't needed anymore
                     const keepKeys = {}
                     items.forEach((it) => { keepKeys[it.mediaId + ":" + it.ep] = true })
@@ -738,6 +811,7 @@ function init() {
                     trayUpdate()
                 }, (e) => {
                     rw.busy = false
+                    rw.again = false
                     console.warn("viktempest-ui extras: rewatch", e)
                 })
         }
