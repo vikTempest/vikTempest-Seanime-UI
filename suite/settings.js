@@ -296,6 +296,9 @@ const VS_FIELDS = [
             { key: "rewatchContinue", default: "yes", label: { de: "Nochmal schauen in „Weiterschauen“", en: "Rewatches in \"Continue watching\"" }, yesNo: true,
               hint: { de: "Schaust du einen Anime, der auf deiner Liste fertig ist, nochmal, steht er auf der Startseite unter „Weiterschauen“. Nur in Seanime, deine AniList-Liste bleibt unverändert.",
                       en: "When you watch an anime again that is completed on your list, it shows up under \"Continue watching\" on the home page. Only in Seanime, your AniList list stays as it is." } },
+            { key: "rewatchCount", default: "yes", label: { de: "Nochmal geschaut auf AniList zählen", en: "Count rewatches on AniList" }, yesNo: true,
+              hint: { de: "Schaust du einen fertigen Anime nochmal bis zur letzten Folge, zählt AniList „Rewatches“ um eins hoch. Der Status bleibt „Completed“.",
+                      en: "When you rewatch a completed anime up to its last episode, AniList's \"Rewatches\" goes up by one. The status stays \"Completed\"." } },
             { key: "episodeMenu", restart: true, default: "yes", label: { de: "Rechtsklick-Menü auf Folgen", en: "Right-click menu on episodes" }, yesNo: true,
               hint: { de: "„Bis hier als gesehen markieren“ und „Online-Stream starten“", en: "\"Mark watched up to here\" and \"Start online stream\"" } },
             { key: "discoverSearch", restart: true, default: "no", yesNo: true, label: { de: "Suche in Discover (Alpha)", en: "Search in Discover (Alpha)" },
@@ -310,16 +313,14 @@ const VS_FIELDS = [
 // What changed in this version, shown at the bottom of the settings page
 const VS_CHANGES = {
     de: [
-        "Manga-Seite wie die Startseite: oben Reihen mit „Weiterlesen“ (neueste zuerst, mit Kapitel und Fortschritt), neue Manga, gerade beliebt, „Weil du gerne … liest“, Geplant, beliebteste und bestbewertete Manga",
-        "„Anpassen“ auf der Manga-Seite: Reihen ein- und ausschalten, Reihenfolge ändern, eigene Genre-Reihen (z. B. Romance) und Manhwa dazunehmen",
-        "Rechtsklick auf eine Manga-Karte: öffnen, aus „Weiterlesen“ ausblenden (kommt wieder, wenn du weiterliest) oder zu „Geplant“ hinzufügen",
-        "Hier stehen ab jetzt nur noch die Neuerungen der aktuellen Version",
+        "1.11.0: Manga-Seite wie die Startseite: oben Reihen mit „Weiterlesen“ (neueste zuerst, mit Kapitel und Fortschritt), neue Manga, gerade beliebt, „Weil du gerne … liest“, Geplant, beliebteste und bestbewertete Manga",
+        "1.11.0: „Anpassen“ auf der Manga-Seite: Reihen ein- und ausschalten, Reihenfolge ändern, eigene Genre-Reihen (z. B. Romance) und Manhwa dazunehmen",
+        "1.11.0: Rechtsklick auf eine Manga-Karte: öffnen, aus „Weiterlesen“ ausblenden (kommt wieder, wenn du weiterliest) oder zu „Geplant“ hinzufügen",
     ],
     en: [
-        "Manga page like the home page: rows at the top with \"Continue reading\" (newest first, with chapter and progress), new manga, trending, \"Because you like …\", planning, most popular and top rated manga",
-        "\"Customize\" on the manga page: turn rows on and off, change their order, add your own genre rows (e.g. Romance) and manhwa",
-        "Right-click on a manga card: open it, hide it from \"Continue reading\" (it comes back when you read on) or add it to \"Planning\"",
-        "From now on this only lists what is new in the current version",
+        "1.11.0: Manga page like the home page: rows at the top with \"Continue reading\" (newest first, with chapter and progress), new manga, trending, \"Because you like …\", planning, most popular and top rated manga",
+        "1.11.0: \"Customize\" on the manga page: turn rows on and off, change their order, add your own genre rows (e.g. Romance) and manhwa",
+        "1.11.0: Right-click on a manga card: open it, hide it from \"Continue reading\" (it comes back when you read on) or add it to \"Planning\"",
     ],
 }
 

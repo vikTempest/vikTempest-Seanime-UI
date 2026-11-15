@@ -225,9 +225,11 @@ const $anilist = {
         ] }] } }
     },
     updateEntryProgress(id, progress) { progressUpdates.push([id, progress]) },
+    updateEntryRepeat(id, repeat) { repeatUpdates.push([id, repeat]) },
 }
 const progressUpdates = []
 const plannedManga = []
+const repeatUpdates = []
 
 // Seanime loads the payload in one runtime and then runs the $ui.register() callback and every
 // hook in other runtimes, compiled from their source text only. The test does the same, so code
@@ -705,7 +707,19 @@ setImmediate(() => {
                             s.rewatchContinue = "yes"
                             store.set("vsuite:settings", s)
                         })
+                        check("rewatch: right-click removes only rewatches", () => {
+                            const item = menuItems.find((m) => m.kind === "newEpisodeCardContextMenuItem")
+                            assert.ok(item && item.click, "menu item missing")
+                            const before = toasts.length
+                            item.click({ episode: { baseAnime: { id: 2 } } })
+                            assert.ok(/nur bei Anime/.test(toasts[before][1]), JSON.stringify(toasts.slice(before)))
+                            item.click({ episode: { baseAnime: { id: 1 } } })
+                            assert.ok(/nicht mehr/.test(toasts[before + 1][1]), JSON.stringify(toasts.slice(before)))
+                            const hidden = storage.get("vsx:rewatchHidden") || {}
+                            assert.ok(hidden[1] && hidden[9], "whole series hidden: " + JSON.stringify(hidden))
+                        })
                         check("rewatch: last episode finished, gone again", () => {
+                            assert.strictEqual(repeatUpdates.length, 0, "nothing counted before the last episode")
                             watchHistory[1].episodeNumber = 12
                             delete watchHistory[3]
                             navigateCb({ pathname: "/", searchParams: {} })
@@ -716,6 +730,12 @@ setImmediate(() => {
                             const e = { libraryCollection: { continueWatchingList: [] }, next() {} }
                             hooks.onAnimeLibraryCollection(e)
                             assert.strictEqual(e.libraryCollection.continueWatchingList.length, 0)
+                        })
+                        check("rewatch: last episode counted once on AniList", () => {
+                            assert.deepStrictEqual(repeatUpdates, [[1, 1]])
+                            navigateCb({ pathname: "/", searchParams: {} })
+                            intervals.forEach((fn) => fn())
+                            assert.deepStrictEqual(repeatUpdates, [[1, 1]], "not twice")
                         })
                     })))))
                     const belowCreated = []
