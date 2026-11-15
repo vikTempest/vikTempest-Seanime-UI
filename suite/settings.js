@@ -194,6 +194,8 @@ const VS_FIELDS = [
               hint: { de: "Bewertungskategorien und Custom Lists", en: "Rating categories and custom lists" } },
             { key: "mod_extras", restart: true, default: "on", label: { de: "Extras", en: "Extras" }, onOff: true,
               hint: { de: "Bildschirmschoner, Schlaftimer, neue Staffeln, Filler, Schnellsuche", en: "Screensaver, sleep timer, new seasons, filler, quick search" } },
+            { key: "mod_manga", restart: true, default: "on", label: { de: "Manga-Seite", en: "Manga page" }, onOff: true,
+              hint: { de: "Reihen wie auf der Startseite: Weiterlesen, neue und beliebte Manga, Genres", en: "Rows like on the home page: continue reading, new and popular manga, genres" } },
         ],
     },
     {
@@ -255,6 +257,15 @@ const VS_FIELDS = [
         ],
     },
     {
+        section: "manga", fields: [
+            { key: "mangaLibrary", default: "nocurrent", label: { de: "Seanimes Listen unter den Reihen", en: "Seanime's lists below the rows" },
+              options: [["nocurrent", { de: "Ja, ohne „Continue reading“", en: "Yes, without \"Continue reading\"" }],
+                        ["all", { de: "Ja, alle", en: "Yes, all of them" }], ["off", { de: "Nein, nur die Reihen", en: "No, only the rows" }]],
+              hint: { de: "Welche Reihen oben stehen und in welcher Reihenfolge, stellst du direkt auf der Manga-Seite mit „Anpassen“ ein. „Continue reading“ von Seanime ist standardmäßig weg, weil die Reihe „Weiterlesen“ das gleiche zeigt.",
+                      en: "Which rows are at the top and in which order is set right on the manga page with \"Customize\". Seanime's \"Continue reading\" is hidden by default because the \"Continue reading\" row shows the same." } },
+        ],
+    },
+    {
         section: "ratings", fields: [
             { key: "step", default: "1", label: { de: "Schrittweite der Pfeiltasten", en: "Arrow key step" },
               options: [["1", "1"], ["0.5", "0.5"], ["0.1", "0.1"]],
@@ -302,12 +313,14 @@ const VS_FIELDS = [
 // What changed in this version, shown at the bottom of the settings page
 const VS_CHANGES = {
     de: [
-        "1.10.0: Rechtsklick auf eine Karte unter „Weiterschauen“ → „Aus ‚Weiterschauen‘ entfernen“ (nur bei Anime, die du nochmal schaust)",
-        "1.10.0: Schaust du einen fertigen Anime nochmal bis zur letzten Folge, zählt AniList „Rewatches“ um eins hoch, der Status bleibt „Completed“",
+        "1.11.0: Manga-Seite wie die Startseite: oben Reihen mit „Weiterlesen“ (neueste zuerst, mit Kapitel und Fortschritt), neue Manga, gerade beliebt, „Weil du gerne … liest“, Geplant, beliebteste und bestbewertete Manga",
+        "1.11.0: „Anpassen“ auf der Manga-Seite: Reihen ein- und ausschalten, Reihenfolge ändern, eigene Genre-Reihen (z. B. Romance) und Manhwa dazunehmen",
+        "1.11.0: Rechtsklick auf eine Manga-Karte: öffnen, aus „Weiterlesen“ ausblenden (kommt wieder, wenn du weiterliest) oder zu „Geplant“ hinzufügen",
     ],
     en: [
-        "1.10.0: Right-click a card under \"Continue watching\" → \"Remove from Continue watching\" (only for anime you are rewatching)",
-        "1.10.0: Rewatching a completed anime up to its last episode adds one to AniList's \"Rewatches\", the status stays \"Completed\"",
+        "1.11.0: Manga page like the home page: rows at the top with \"Continue reading\" (newest first, with chapter and progress), new manga, trending, \"Because you like …\", planning, most popular and top rated manga",
+        "1.11.0: \"Customize\" on the manga page: turn rows on and off, change their order, add your own genre rows (e.g. Romance) and manhwa",
+        "1.11.0: Right-click on a manga card: open it, hide it from \"Continue reading\" (it comes back when you read on) or add it to \"Planning\"",
     ],
 }
 
@@ -409,7 +422,7 @@ const VS_PAGE_TEXT = {
     de: {
         title: "VikTempest Seanime UI",
         intro: "Alle Einstellungen für Season Switcher, AniList Custom Ratings und das Theme.",
-        general: "Allgemein", theme: "Theme", switcher: "Season Switcher", ratings: "AniList Custom Ratings", extras: "Extras",
+        general: "Allgemein", theme: "Theme", switcher: "Season Switcher", ratings: "AniList Custom Ratings", extras: "Extras", manga: "Manga-Seite",
         layout: "Seitenleiste", backup: "Sichern und laden",
         backupHint: "„Exportieren“ schreibt alle Einstellungen als Text in das Feld (und in die Zwischenablage). Heb ihn auf, z. B. vor dem Neuinstallieren: Seanime löscht beim Deinstallieren alle Einstellungen. Zum Laden den Text einfügen und „Importieren“ drücken.",
         exportBtn: "Exportieren", importBtn: "Importieren", exported: "Exportiert. Den Text jetzt kopieren und aufheben.",
@@ -431,6 +444,7 @@ const VS_PAGE_TEXT = {
             content: "Platz über der Folgenliste (Staffel-Dropdown)",
             episodes: "Folgenliste",
             stream: "Stream-Ansicht",
+            manga: "Manga-Seite (Reihen)",
         },
         openSettings: "Einstellungen öffnen",
         oldSwitcher: "Die alte einzelne Erweiterung „Season Switcher“ scheint noch installiert zu sein. Deinstalliere sie unter Extensions, sonst läuft alles doppelt.",
@@ -438,7 +452,7 @@ const VS_PAGE_TEXT = {
     en: {
         title: "VikTempest Seanime UI",
         intro: "All settings for Season Switcher, AniList Custom Ratings and the theme.",
-        general: "General", theme: "Theme", switcher: "Season Switcher", ratings: "AniList Custom Ratings", extras: "Extras",
+        general: "General", theme: "Theme", switcher: "Season Switcher", ratings: "AniList Custom Ratings", extras: "Extras", manga: "Manga page",
         layout: "Sidebar", backup: "Back up and load",
         backupHint: "\"Export\" writes all settings as text into the box (and to the clipboard). Keep it, e.g. before reinstalling: Seanime deletes all settings when you uninstall. To load them, paste the text and press \"Import\".",
         exportBtn: "Export", importBtn: "Import", exported: "Exported. Copy the text now and keep it.",
@@ -460,6 +474,7 @@ const VS_PAGE_TEXT = {
             content: "Space above the episode list (season dropdown)",
             episodes: "Episode list",
             stream: "Stream view",
+            manga: "Manga page (rows)",
         },
         openSettings: "Open settings",
         oldSwitcher: "The old separate \"Season Switcher\" extension still seems to be installed. Uninstall it under Extensions, otherwise everything runs twice.",
