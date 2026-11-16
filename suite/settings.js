@@ -318,16 +318,14 @@ const VS_FIELDS = [
 // What changed in this version, shown at the bottom of the settings page
 const VS_CHANGES = {
     de: [
-        "1.12.0: Manga-Seite mit großem Banner oben wie auf der Startseite (gerade beliebte Manga oder was du liest, mit „Lesen“ und „Merken“)",
-        "1.12.0: Suche auf der Manga-Seite mit Filtern wie in Discover: Sortierung, Genre, Format, Status, Land (Manga/Manhwa/Manhua), Jahr",
-        "1.12.0: Cover in den Reihen stehen jetzt immer auf gleicher Höhe, egal wie lang der Titel ist",
-        "1.12.0: Feinschliff: Pfeile nur wenn die Reihe weitergeht, Ladeplatzhalter statt „Lädt …“, „Nochmal versuchen“ bei AniList-Fehlern, Fortschrittsbalken auf Karten, kaputte Bilder werden ausgeblendet",
+        "1.12.1: „Weiterschauen“ auf der Startseite öffnet die Folge ohne Flackern: statt Folgenliste, Startseite und Anime-Seite nacheinander kommt ein kurzer Ladebildschirm und dann der Player",
+        "1.12.1: Auch beim Klick auf eine Folge in der Folgenliste und bei „Folgenübersicht“ verdeckt ein Ladebildschirm den Umweg über die Startseite",
+        "1.12.1: Staffel wechseln, während eine Folge läuft: der Player der alten Staffel wird sauber geschlossen, damit der Provider die neue Staffel lädt statt der Folge der alten",
     ],
     en: [
-        "1.12.0: Manga page with a big banner at the top like the home page (trending manga or what you are reading, with \"Read\" and \"Save\")",
-        "1.12.0: Search on the manga page with filters like in Discover: sort, genre, format, status, country (manga/manhwa/manhua), year",
-        "1.12.0: Covers in the rows always line up now, however long the title is",
-        "1.12.0: Polish: arrows only when a row goes on, loading placeholders instead of \"Loading …\", \"Try again\" on AniList errors, progress bars on cards, broken images are hidden",
+        "1.12.1: \"Continue watching\" on the home page opens the episode without flickering: instead of the episode list, the home page and the anime page one after the other you see a short loading screen and then the player",
+        "1.12.1: Clicking an episode in the episode list and \"All episodes\" also hide the detour over the home page behind a loading screen",
+        "1.12.1: Switching seasons while an episode plays: the old season's player is closed properly, so the provider loads the new season instead of the old season's episode",
     ],
 }
 

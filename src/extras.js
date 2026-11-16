@@ -551,7 +551,11 @@ function init() {
                     return false
                 }
                 if (seq.title) ctx.toast.success(t("nextGo", seq.title))
-                ctx.screen.navigateTo("/entry", { id: String(seq.id) })
+                // With the view in the address, so Seanime closes the player of the old season
+                // instead of keeping it open on the new page (see openSeason in the season switcher)
+                const q = { id: String(seq.id) }
+                if (pref("infoPage", "yes") === "yes") q.tab = "ext:viktempest-ui"
+                ctx.screen.navigateTo("/entry", q)
                 return true
             },
         }
