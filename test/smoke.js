@@ -290,6 +290,9 @@ check("manga page: rows webview with your list, newest first", () => {
     assert.strictEqual(init.payload.text.continue, "Weiterlesen")
     assert.deepStrictEqual(init.payload.entries.map((e) => e.media.id), [501, 502, 503])
     assert.strictEqual(init.payload.rows[0].id, "continue")
+    assert.strictEqual(init.payload.banner, "trending")
+    assert.strictEqual(init.payload.text.searchPh, "Manga suchen …")
+    assert.ok(init.payload.text.formats && init.payload.text.formats.NOVEL, "search texts missing")
     // the page script parses
     const script = mangaView.content.split("<script>")[1].split("</script>")[0]
     new Function(script)
@@ -332,6 +335,10 @@ check("settings page sends fields, version and status", () => {
 })
 
 setImmediate(() => {
+    check("manga page: banner replaces Seanime's header", () => {
+        const style = body.children.find((c) => c.attributes["data-vsm-style"] && !c.removed)
+        assert.ok(style && /data-library-header-container/.test(style.text), "Seanime's manga header not replaced")
+    })
     check("settings page init payload", () => {
         const init = page.channel.sent.find((m) => m.name === "init")
         assert.ok(init, "no init sent")
