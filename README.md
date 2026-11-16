@@ -110,7 +110,11 @@ Voraussetzung für beides: In Seanimes Einstellungen ist „Watch continuity“ 
 
 ## Manga-Seite
 
-Die Manga-Seite sieht jetzt aus wie die Startseite: Das große Bild oben bleibt, darunter stehen Reihen zum Durchscrollen (mit Pfeilen oder Wischen):
+Die Manga-Seite sieht jetzt aus wie die Startseite. Oben steht ein großes **Banner** mit gerade beliebten Manga (wechselt alle 8 Sekunden, mit Beschreibung, „Öffnen“/„Kapitel X lesen“ und „Merken“). In den Einstellungen unter „Manga-Seite“ kannst du stattdessen zeigen, was du gerade liest, Seanimes eigenes Banner nehmen oder es ausschalten.
+
+Darunter gibt es eine **Suche nur für Manga** mit dem Knopf **„Filter“** wie in Discover: Sortierung, Genre, Format (Manga, Light Novel, One-Shot), Status, Land (Japan, Korea, China, Taiwan) und Jahr. Sobald du tippst oder einen Filter setzt, stehen die Ergebnisse statt der Reihen da.
+
+Danach kommen die Reihen zum Durchscrollen (mit Pfeilen oder Wischen):
 
 - **Weiterlesen:** was du gerade liest oder nochmal liest, zuletzt gelesenes zuerst, mit „Weiter mit Kapitel X“ und Fortschrittsbalken
 - **Neue Manga** (im letzten Jahr gestartet), **Gerade beliebt**, **Weil du gerne … liest** (dein häufigstes Genre, ohne Manga, die schon auf deiner Liste sind), **Geplant**, **Beliebteste Manga**, **Bestbewertet**

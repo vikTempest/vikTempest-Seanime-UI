@@ -258,6 +258,11 @@ const VS_FIELDS = [
     },
     {
         section: "manga", fields: [
+            { key: "mangaBanner", default: "trending", label: { de: "Banner oben", en: "Banner at the top" },
+              options: [["trending", { de: "Gerade beliebte Manga", en: "Trending manga" }], ["reading", { de: "Was du gerade liest", en: "What you are reading" }],
+                        ["seanime", { de: "Seanimes eigenes Banner", en: "Seanime's own banner" }], ["off", { de: "Kein Banner", en: "No banner" }]],
+              hint: { de: "Großes Banner wie auf der Startseite, wechselt alle 8 Sekunden, mit „Lesen“ und „Merken“.",
+                      en: "A big banner like on the home page, changes every 8 seconds, with \"Read\" and \"Save\"." } },
             { key: "mangaLibrary", default: "nocurrent", label: { de: "Seanimes Listen unter den Reihen", en: "Seanime's lists below the rows" },
               options: [["nocurrent", { de: "Ja, ohne „Continue reading“", en: "Yes, without \"Continue reading\"" }],
                         ["all", { de: "Ja, alle", en: "Yes, all of them" }], ["off", { de: "Nein, nur die Reihen", en: "No, only the rows" }]],
@@ -313,14 +318,16 @@ const VS_FIELDS = [
 // What changed in this version, shown at the bottom of the settings page
 const VS_CHANGES = {
     de: [
-        "1.11.0: Manga-Seite wie die Startseite: oben Reihen mit „Weiterlesen“ (neueste zuerst, mit Kapitel und Fortschritt), neue Manga, gerade beliebt, „Weil du gerne … liest“, Geplant, beliebteste und bestbewertete Manga",
-        "1.11.0: „Anpassen“ auf der Manga-Seite: Reihen ein- und ausschalten, Reihenfolge ändern, eigene Genre-Reihen (z. B. Romance) und Manhwa dazunehmen",
-        "1.11.0: Rechtsklick auf eine Manga-Karte: öffnen, aus „Weiterlesen“ ausblenden (kommt wieder, wenn du weiterliest) oder zu „Geplant“ hinzufügen",
+        "1.12.0: Manga-Seite mit großem Banner oben wie auf der Startseite (gerade beliebte Manga oder was du liest, mit „Lesen“ und „Merken“)",
+        "1.12.0: Suche auf der Manga-Seite mit Filtern wie in Discover: Sortierung, Genre, Format, Status, Land (Manga/Manhwa/Manhua), Jahr",
+        "1.12.0: Cover in den Reihen stehen jetzt immer auf gleicher Höhe, egal wie lang der Titel ist",
+        "1.12.0: Feinschliff: Pfeile nur wenn die Reihe weitergeht, Ladeplatzhalter statt „Lädt …“, „Nochmal versuchen“ bei AniList-Fehlern, Fortschrittsbalken auf Karten, kaputte Bilder werden ausgeblendet",
     ],
     en: [
-        "1.11.0: Manga page like the home page: rows at the top with \"Continue reading\" (newest first, with chapter and progress), new manga, trending, \"Because you like …\", planning, most popular and top rated manga",
-        "1.11.0: \"Customize\" on the manga page: turn rows on and off, change their order, add your own genre rows (e.g. Romance) and manhwa",
-        "1.11.0: Right-click on a manga card: open it, hide it from \"Continue reading\" (it comes back when you read on) or add it to \"Planning\"",
+        "1.12.0: Manga page with a big banner at the top like the home page (trending manga or what you are reading, with \"Read\" and \"Save\")",
+        "1.12.0: Search on the manga page with filters like in Discover: sort, genre, format, status, country (manga/manhwa/manhua), year",
+        "1.12.0: Covers in the rows always line up now, however long the title is",
+        "1.12.0: Polish: arrows only when a row goes on, loading placeholders instead of \"Loading …\", \"Try again\" on AniList errors, progress bars on cards, broken images are hidden",
     ],
 }
 
