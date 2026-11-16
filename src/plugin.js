@@ -591,7 +591,7 @@ function init() {
                             select.addEventListener("change", () => {
                                 Promise.resolve(select.getProperty("value")).then((value) => {
                                     const id = parseInt(String(value), 10)
-                                    if (id && id !== state.mediaId) ctx.screen.navigateTo("/entry", { id: String(id) })
+                                    if (id && id !== state.mediaId) openSeason(id)
                                 })
                             })
                         })
@@ -943,7 +943,15 @@ function init() {
             // Play symbol on episode pictures and tappable titles
             " .vtss-play { position: absolute; inset: 0; z-index: 3; display: flex; align-items: center; justify-content: center;" +
             " pointer-events: none; font-size: 2rem; color: #fff; text-shadow: 0 2px 10px rgba(0,0,0,.8); opacity: .85; }" +
-            " .vtss-tap { cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }"
+            " .vtss-tap { cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }" +
+            // Cover while a stream opens (see showCover)
+            " .vtss-cover { display: none; }" +
+            " .vtss-cover.vtss-cover-on { display: flex; position: fixed; inset: 0; z-index: 2147483000; align-items: center;" +
+            " justify-content: center; background: var(--background, #0b0b0b); animation: vtss-cover-in .12s ease-out; }" +
+            " .vtss-cover.vtss-cover-on::after { content: \"\"; width: 2.75rem; height: 2.75rem; border-radius: 50%;" +
+            " border: 3px solid rgba(255,255,255,.15); border-top-color: rgb(var(--color-brand-500, 229 9 20)); animation: vtss-spin .8s linear infinite; }" +
+            " @keyframes vtss-cover-in { from { opacity: 0; } to { opacity: 1; } }" +
+            " @keyframes vtss-spin { to { transform: rotate(360deg); } }"
 
         function ensureStyle() {
             if (rows.styled) return
@@ -1000,12 +1008,56 @@ function init() {
         // (navigateTo ignores "/"), and Seanime turns "0123" into 123, so the plugin opens the
         // anime page without an id: Seanime then goes to the home page by itself, which resets
         // the view. Once that happened, the plugin opens the anime with the view in the address.
+        // The detour over the home page would flash the episode list, the home page and the anime
+        // page again one after the other. A dark cover with a spinner hides it: you see the page
+        // you clicked on, a short loading screen and then the player.
+        //   cover.until: "cw" (clicked "Continue watching", waiting for the anime page),
+        //   "reopen" (detour running), "stream" / "tab" (waiting for the player / Episodes tab)
+        const cover = { token: 0, until: "", timer: null }
+        function coverEl() {
+            return ctx.dom.queryOne("[data-vtss-cover]").then((el) => {
+                if (el) return el
+                return Promise.all([ctx.dom.createElement("div"), ctx.dom.queryOne("body")]).then((res) => {
+                    const div = res[0], body = res[1]
+                    if (!div || !body) return null
+                    div.setAttribute("data-vtss-cover", "1")
+                    div.setAttribute("class", "vtss-cover")
+                    body.append(div)
+                    return div
+                })
+            })
+        }
+        function showCover(until, ms) {
+            const token = ++cover.token
+            const wasOn = !!cover.until
+            cover.until = until
+            if (cover.timer) cover.timer()
+            // Never stays up for good, even when something on the way goes wrong
+            cover.timer = ctx.setTimeout(() => { if (cover.token === token) hideCover() }, ms)
+            if (wasOn) return
+            ensureStyle()
+            coverEl().then((el) => {
+                if (el && cover.token === token && cover.until) el.setAttribute("class", "vtss-cover vtss-cover-on")
+            }).catch(() => {})
+        }
+        // Only hides when the cover is waiting for "until" (or always without it)
+        function hideCover(until) {
+            if (!cover.until || (until && cover.until !== until)) return
+            cover.until = ""
+            cover.token++
+            if (cover.timer) { cover.timer(); cover.timer = null }
+            ctx.dom.queryOne("[data-vtss-cover]").then((el) => {
+                if (el && !cover.until) el.setAttribute("class", "vtss-cover")
+            }).catch(() => {})
+        }
+
         function reopenEntry(mediaId, params) {
             const id = String(mediaId)
             const q = { id: id }
             Object.keys(params).forEach((k) => q[k] = String(params[k]))
             const pending = { marker: "vtss" + id + "x" + Date.now(), q: q }
             state.pending = pending
+            showCover("reopen", 9000)
             ctx.screen.navigateTo("/entry", { vtss: pending.marker })
             // Normally continued in onPage once Seanime has left the anime page
             ctx.setTimeout(() => finishReopen(pending), 3000)
@@ -1014,14 +1066,50 @@ function init() {
         function finishReopen(pending) {
             if (state.pending !== pending) return
             state.pending = null
+            const stream = pending.q.tab === "onlinestream"
+            if (cover.until === "reopen") showCover(stream ? "stream" : "tab", 6000)
             ctx.screen.navigateTo("/entry", pending.q)
-            if (pending.q.tab !== "onlinestream") return
+            if (!stream) return
             // Tell the user when Seanime didn't open the stream, instead of silently doing nothing
             ctx.setTimeout(() => {
                 ctx.dom.queryOne(ONLINE_VIEW).then((el) => {
-                    if (!el) ctx.toast.warning(t("playFailed"))
+                    if (el) return
+                    hideCover("stream")
+                    ctx.toast.warning(t("playFailed"))
                 }).catch(() => {})
             }, 4000)
+        }
+
+        // Opens another season of the series from the dropdown. Always with the view in the
+        // address: Seanime keeps the open player when only the id changes and the page was loaded
+        // before, and then still asks the provider for the episode of the old season.
+        function openSeason(id) {
+            if (forceInfo) {
+                ctx.screen.navigateTo("/entry", { id: String(id), tab: INFO_TAB })
+                return
+            }
+            ctx.dom.queryOne(ONLINE_VIEW).then((el) => {
+                if (el) reopenEntry(id, { tab: "onlinestream" })
+                else ctx.screen.navigateTo("/entry", { id: String(id) })
+            }).catch(() => ctx.screen.navigateTo("/entry", { id: String(id) }))
+        }
+
+        // Clicking an episode under "Continue watching" on the home page: Seanime opens the anime
+        // page and lets the Episodes tab start the episode half a second later, which then takes
+        // the detour above. The cover goes up right away so the episode list doesn't flash.
+        const CW_CARD = "[data-continue-watching-container] [data-episode-card]"
+        const cwCards = {}
+        function setupContinueCard(card) {
+            if (!card || cwCards[card.id]) return
+            cwCards[card.id] = true
+            card.addEventListener("click", () => {
+                if (!forceInfo) return
+                showCover("cw", 3500)
+                // Dragging the row doesn't open anything: then take the cover down again
+                ctx.setTimeout(() => {
+                    if (cover.until === "cw" && (!state.loc || state.loc.pathname !== "/entry")) hideCover("cw")
+                }, 700)
+            })
         }
 
         // Online streaming only. (Debrid and torrent streaming have no "open episode N" address.)
@@ -1629,6 +1717,11 @@ function init() {
                     return
                 }
             }
+            if (cover.until === "cw") {
+                // The anime page opened: wait for the Episodes tab to start the episode
+                if (pathname === "/entry" && searchParams && searchParams.id) showCover("cw", 3000)
+                else if (pathname !== "/") hideCover("cw")
+            }
             const prev = state.loc
             state.loc = {
                 pathname: pathname,
@@ -1656,6 +1749,7 @@ function init() {
                 rows.badged = {}
                 rows.links = {}
                 episodes.done = {}
+                Object.keys(cwCards).forEach((k) => delete cwCards[k])
                 marks.done = {}
                 marks.progress = {}
                 scheduleMergeRows()
@@ -1723,7 +1817,15 @@ function init() {
                 if (elements && elements.length) {
                     health("stream")
                     checkOnlineView()
+                    // Let the player draw its first frame before the cover goes
+                    if (cover.until === "stream") ctx.setTimeout(() => hideCover("stream"), 350)
                 }
+            })
+            ctx.dom.observe(TAB_VIEW, (elements) => {
+                if (elements && elements.length && cover.until === "tab") ctx.setTimeout(() => hideCover("tab"), 200)
+            })
+            ctx.dom.observe(CW_CARD, (elements) => {
+                ;(elements || []).forEach(setupContinueCard)
             })
             ctx.dom.observe(VIEW_TOGGLE, (elements) => {
                 if (elements && elements.length) addEpisodesButton(elements[0])

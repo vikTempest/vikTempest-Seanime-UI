@@ -111,6 +111,7 @@ const ctx = {
     dom: {
         queryOne(sel) {
             if (sel === "[data-vsuite-theme]") return Promise.resolve(body.children.find((c) => c.attributes["data-vsuite-theme"] && !c.removed) || null)
+            if (sel === "[data-vtss-cover]") return Promise.resolve(body.children.find((c) => c.attributes["data-vtss-cover"] && !c.removed) || null)
             if (sel === "[data-vtss-style]") return Promise.resolve(body.children.find((c) => c.attributes["data-vtss-style"] && !c.removed) || null)
             return Promise.resolve(domElements[sel] || null)
         },
@@ -867,10 +868,53 @@ setImmediate(() => {
                             }), 10)
                         }, 10)
                     }, 110)
+                    // Cover while "Continue watching" opens the stream (timers run by hand here)
+                    setTimeout(() => {
+                        const realTimeout = ctx.setTimeout
+                        const timers = []
+                        ctx.setTimeout = (fn, ms) => {
+                            const t = { fn, ms: ms || 0 }
+                            timers.push(t)
+                            return () => { const i = timers.indexOf(t); if (i >= 0) timers.splice(i, 1) }
+                        }
+                        const runUpTo = (ms) => timers.splice(0).forEach((t) => { if (t.ms <= ms) t.fn(); else timers.push(t) })
+                        const coverClass = () => { const c = body.children.find((x) => x.attributes["data-vtss-cover"]); return c ? c.attributes.class : "" }
+                        navigateCb({ pathname: "/", searchParams: {} })
+                        const card = makeElement("div")
+                        observers.filter((o) => /continue-watching-container/.test(o.sel)).forEach((o) => o.cb([card]))
+                        card.listeners.click()
+                        setImmediate(() => setImmediate(() => {
+                            check("continue watching: cover goes up on the click", () => {
+                                assert.strictEqual(coverClass(), "vtss-cover vtss-cover-on")
+                            })
+                            navigations.length = 0
+                            navigateCb({ pathname: "/entry", searchParams: { id: "1" } })
+                            ctx.anime.tab.onSelectEpisode({ mediaId: 1, episodeNumber: 4 })
+                            const marker = navigations[navigations.length - 1].params.vtss
+                            navigateCb({ pathname: "/entry", searchParams: { vtss: marker } })
+                            runUpTo(200)
+                            setImmediate(() => setImmediate(() => {
+                                check("continue watching: cover stays during the detour, stream opens", () => {
+                                    const last = navigations[navigations.length - 1]
+                                    assert.strictEqual(JSON.stringify(last.params), JSON.stringify({ id: "1", tab: "onlinestream", episode: "4" }))
+                                    assert.strictEqual(coverClass(), "vtss-cover vtss-cover-on")
+                                })
+                                navigateCb({ pathname: "/entry", searchParams: { id: "1", tab: "onlinestream", episode: "4" } })
+                                observers.filter((o) => o.sel === "[data-anime-entry-page-online-streaming-view]").forEach((o) => o.cb([makeElement("div")]))
+                                runUpTo(400)
+                                setImmediate(() => setImmediate(() => {
+                                    check("continue watching: cover goes once the player is there", () => {
+                                        assert.strictEqual(coverClass(), "vtss-cover")
+                                    })
+                                    ctx.setTimeout = realTimeout
+                                }))
+                            }))
+                        }))
+                    }, 140)
                     setTimeout(() => {
                         console.log(failures ? "\n" + failures + " failed" : "\nall passed")
                         process.exitCode = failures ? 1 : 0
-                    }, 170)
+                    }, 200)
                 }))
             })
         })
