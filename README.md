@@ -40,7 +40,7 @@ Installieren: unter **Extensions** → „Add extensions“ → „Install from 
 https://raw.githubusercontent.com/vikTempest/vikTempest-Seanime-UI/main/providers/aniworld/manifest.json
 ```
 
-Vorher unter **Extensions** das bisherige „AniWorld“ aus dem Marketplace deinstallieren, damit nur eins in der Provider-Auswahl steht. Danach beim Stream „AniWorld“ wählen. Auf der Karte unter Extensions steht die Version (aktuell 1.5.2) und „Pal, vikTempest“ als Autor; Updates kommen über „Update“ aus diesem Repo. Passt eine Staffel trotzdem nicht, hilft „Manual match“ beim Stream: dort z. B. „Re:Zero Season 2“ suchen.
+Vorher unter **Extensions** das bisherige „AniWorld“ aus dem Marketplace deinstallieren, damit nur eins in der Provider-Auswahl steht. Danach beim Stream „AniWorld“ wählen. Auf der Karte unter Extensions steht die Version (aktuell 1.5.3) und „Pal, vikTempest“ als Autor; Updates kommen über „Update“ aus diesem Repo. Passt eine Staffel trotzdem nicht, hilft „Manual match“ beim Stream: dort z. B. „Re:Zero Season 2“ suchen.
 
 ## Einstellungen
 
