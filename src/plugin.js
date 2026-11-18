@@ -25,10 +25,10 @@ function init() {
     // anything from outside.
     function vtssMergeHook(e) {
         try {
-            let enabled = "yes", keep = "first"
+            let enabled = "yes", keep = "current"
             try {
                 enabled = $getUserPreference("mergeLibrary") || "yes"
-                keep = $getUserPreference("mergeKeep") || "first"
+                keep = $getUserPreference("mergeKeep") || "current"
             }
             catch (err) {}
             // Library collection (local files) or stream collection (streaming "include in library")
@@ -133,17 +133,35 @@ function init() {
                     return d.year * 10000 + (d.month || 12) * 100 + (d.day || 28)
                 }
 
-                // Keeps one item per series, at the position of the first one
-                const merge = (items, mediaOf, latest) => {
+                // Seasons you are watching (or paused) count first with "current"
+                const WATCHING = { CURRENT: true, REPEATING: true, PAUSED: true }
+                const statusOf = (item) => {
+                    const ld = item && (item.listData || item.entryListData)
+                    return ld && ld.status ? String(ld.status) : ""
+                }
+                // Keeps one item per series, at the position of the first one.
+                // mode: "first" (earliest season), "latest" or "current" (the season you are
+                // watching; without one in this section the latest one, which is closest to it)
+                const merge = (items, mediaOf, mode) => {
                     const best = {}
+                    const rank = (item, media) => {
+                        const k = dateKey(media)
+                        if (mode === "latest") return -k
+                        if (mode === "current") {
+                            const st = statusOf(item)
+                            if (!st) return k
+                            return WATCHING[st] ? k : 1000000000 - k
+                        }
+                        return k
+                    }
                     items.forEach((item, i) => {
                         const media = mediaOf(item)
                         if (!media || !media.id) return
                         const root = find(media.id)
                         const cur = best[root]
-                        const k = dateKey(media)
+                        const k = rank(item, media)
                         if (!cur) best[root] = { i: i, k: k, pos: i }
-                        else if (latest ? k > cur.k : k < cur.k) best[root] = { i: i, k: k, pos: cur.pos }
+                        else if (k < cur.k) best[root] = { i: i, k: k, pos: cur.pos }
                     })
                     const out = []
                     const byPos = {}
@@ -160,15 +178,15 @@ function init() {
 
                 ;(lc.lists || []).forEach((list) => {
                     if (list.entries && list.entries.length > 1) {
-                        list.entries = merge(list.entries, (entry) => entry && entry.media, keep === "latest")
+                        list.entries = merge(list.entries, (entry) => entry && entry.media, keep)
                     }
                 })
                 if (lc.anime && lc.anime.length > 1) {
-                    lc.anime = merge(lc.anime, (media) => media, keep === "latest")
+                    lc.anime = merge(lc.anime, (media) => media, keep)
                 }
                 // Continue watching: the earliest season is the one you are actually on
                 if (lc.continueWatchingList && lc.continueWatchingList.length > 1) {
-                    lc.continueWatchingList = merge(lc.continueWatchingList, (ep) => ep && ep.baseAnime, false)
+                    lc.continueWatchingList = merge(lc.continueWatchingList, (ep) => ep && ep.baseAnime, "first")
                 }
             }
         }
@@ -213,6 +231,10 @@ function init() {
                 notOnList: "nicht auf deiner Liste",
                 seasons: "{0} Staffeln",
                 rateLimit: "AniList ist gerade ausgelastet. Die Staffeln werden in etwa einer Minute geladen.",
+                pkSearch: "Folge suchen: Nummer oder Titel",
+                pkEpisode: "Folge {0}",
+                pkNone: "Keine passende Folge.",
+                pkMore: "Weitere Folgen: tippe die Nummer ein.",
             },
             en: {
                 label: "Season",
@@ -230,6 +252,10 @@ function init() {
                 notOnList: "not on your list",
                 seasons: "{0} seasons",
                 rateLimit: "AniList is busy right now. The seasons will load in about a minute.",
+                pkSearch: "Find an episode: number or title",
+                pkEpisode: "Episode {0}",
+                pkNone: "No matching episode.",
+                pkMore: "More episodes: type the number.",
             },
             es: {
                 label: "Temporada",
@@ -247,6 +273,10 @@ function init() {
                 notOnList: "no está en tu lista",
                 seasons: "{0} temporadas",
                 rateLimit: "AniList está ocupado. Las temporadas se cargarán en un minuto.",
+                pkSearch: "Buscar episodio: número o título",
+                pkEpisode: "Episodio {0}",
+                pkNone: "Ningún episodio coincide.",
+                pkMore: "Más episodios: escribe el número.",
             },
             pt: {
                 label: "Temporada",
@@ -264,6 +294,10 @@ function init() {
                 notOnList: "não está na sua lista",
                 seasons: "{0} temporadas",
                 rateLimit: "O AniList está ocupado. As temporadas serão carregadas em cerca de um minuto.",
+                pkSearch: "Buscar episódio: número ou título",
+                pkEpisode: "Episódio {0}",
+                pkNone: "Nenhum episódio encontrado.",
+                pkMore: "Mais episódios: digite o número.",
             },
             ja: {
                 label: "シーズン",
@@ -281,6 +315,10 @@ function init() {
                 notOnList: "リストにありません",
                 seasons: "{0}シーズン",
                 rateLimit: "AniListが混み合っています。約1分後にシーズンを読み込みます。",
+                pkSearch: "エピソードを検索：番号またはタイトル",
+                pkEpisode: "第{0}話",
+                pkNone: "該当するエピソードがありません。",
+                pkMore: "他のエピソード：番号を入力してください。",
             },
         }
         // Read when used, so a change on the settings page applies on the next page
@@ -335,13 +373,14 @@ function init() {
         }
 
         // One anime with its relations: from the cache, otherwise one request (the anime and its
-        // direct relations come complete). Only the anime whose page is open is renewed when its
-        // copy is old; for the others of the franchise an old copy is fine.
-        function nodeOf(id, renew) {
+        // direct relations come complete). An old copy is used right away, so a page with known
+        // seasons shows its dropdown without waiting for AniList; the anime whose page is open is
+        // renewed in the background afterwards (see renewSeasons).
+        function nodeOf(id) {
             let node = ani.get(id, { full: true })
             if (node) return node
             node = ani.get(id, { full: true, stale: true })
-            if (node && !renew) return node
+            if (node) return node
             let err = null, done = false
             try { done = ani.fetch([id], { deep: true, interactive: true }) } catch (e) { err = e }
             node = ani.get(id, { full: true, stale: true })
@@ -351,7 +390,8 @@ function init() {
         }
 
         // All anime connected to this one through PREQUEL/SEQUEL, sorted by start date.
-        function loadFranchise(startId) {
+        // cacheOnly: null when something would have to be asked from AniList first.
+        function loadFranchise(startId, cacheOnly) {
             const seen = {}
             const result = []
             const queue = [startId]
@@ -359,7 +399,8 @@ function init() {
                 const id = queue.shift()
                 if (seen[id]) continue
                 seen[id] = true
-                const node = nodeOf(id, id === startId)
+                const node = cacheOnly ? ani.get(id, { full: true, stale: true }) : nodeOf(id)
+                if (!node && cacheOnly) return null
                 if (!node || node.missing) continue
                 result.push(node)
                 ;(node.rel || []).forEach((r) => {
@@ -522,13 +563,20 @@ function init() {
                 })
             })
         }
-        const state = { mediaId: 0, options: null, injecting: false, pathname: "", single: 0 }
-        const combinedMode = () => pref("allSeasons", "yes") === "yes"
-        // No combined list for this anime: the dropdown is shown after all
-        function noCombinedList(mediaId) {
-            if (!mediaId || state.single === mediaId) return
-            state.single = mediaId
-            if (state.mediaId === mediaId) inject()
+        const state = { mediaId: 0, options: null, pathname: "", injectAt: 0, injectToken: 0, injectAgain: false }
+        // Either or (setting "Episode list"): all seasons in one list, or one season at a time with
+        // the dropdown. Never both, and the dropdown is the default.
+        const combinedMode = () => pref("allSeasons", "no") === "yes"
+
+        // Short fingerprint of a text, so the page can tell whether its dropdown is up to date
+        function hashOf(s) {
+            let h = 0
+            s = String(s || "")
+            for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0
+            return String(h >>> 0)
+        }
+        function optionsSig(options) {
+            return hashOf((options || []).map((o) => o.id + "=" + o.label).join("|"))
         }
 
         function removeSwitchers() {
@@ -537,69 +585,92 @@ function init() {
                 .catch(() => {})
         }
 
+        // A DOM request can stay unanswered (e.g. while Seanime is open in a second tab or reloads,
+        // only the main tab answers). Then an earlier version waited for good and the dropdown never
+        // came back. Now a run counts as gone after INJECT_MS and the next call starts over.
+        const INJECT_MS = 4000
+
+        // A season picked in the dropdown or in the player. A quick second pick of the same season
+        // (double event while the page changes) is ignored.
+        const picked = { id: 0, time: 0 }
+        function pickSeason(value) {
+            const id = parseInt(String(value || ""), 10)
+            if (!id || id === state.mediaId) return
+            if (picked.id === id && Date.now() - picked.time < 1500) return
+            picked.id = id
+            picked.time = Date.now()
+            openSeason(id)
+        }
+
         function inject() {
             const mediaId = state.mediaId
             const options = state.options
-            if (!mediaId || !options || options.length < 2 || state.injecting) return
-            // Either or: with all seasons in one list (headings per season) there is no dropdown.
-            // Only when this anime has no combined list (e.g. a movie) the dropdown stays.
-            if (combinedMode() && state.single !== mediaId) {
+            if (!mediaId || !options) return
+            if (combinedMode() || options.length < 2) {
                 removeSwitchers()
                 return
             }
-            state.injecting = true
+            if (state.injectAt && Date.now() - state.injectAt < INJECT_MS) {
+                // Runs again once the current run is done (the page may have changed meanwhile)
+                state.injectAgain = true
+                return
+            }
+            const token = ++state.injectToken
+            state.injectAt = Date.now()
+            state.injectAgain = false
+            const place = belowButtons() ? "episodes" : "title"
+            const sig = place + ":" + mediaId + ":" + optionsSig(options)
+            const current = () => state.injectToken === token && state.mediaId === mediaId
 
-            ctx.dom.queryOne(".vtss-switcher")
+            ctx.dom.query(".vtss-switcher")
                 .then((existing) => {
-                    const place = belowButtons() ? "episodes" : "title"
-                    if (existing) {
-                        return Promise.all([existing.getAttribute("data-media-id"), existing.getAttribute("data-place")]).then((a) => {
-                            if (String(a[0]) === String(mediaId) && String(a[1]) === place) return null
-                            existing.remove()
-                            return switcherAnchor()
-                        })
-                    }
+                    existing = existing || []
+                    // Exactly one, for this anime, in the right place and with the same entries: done
+                    if (existing.length === 1 && String((existing[0].attributes || {})["data-sig"] || "") === sig) return null
+                    existing.forEach((el) => el.remove())
                     return switcherAnchor()
                 })
                 .then((anchor) => {
-                    if (!anchor || state.mediaId !== mediaId) return
-                    return ctx.dom.createElement("div").then((wrap) => {
-                        const optionsHtml = options.map((o) =>
-                            "<option value=\"" + o.id + "\"" + (o.id === mediaId ? " selected" : "") + ">" +
-                            escapeHtml(o.label) + "</option>",
-                        ).join("")
-                        const place = belowButtons() ? "episodes" : "title"
+                    if (!anchor || !current()) return
+                    return Promise.all([ctx.dom.createElement("div"), ctx.dom.createElement("select")]).then((els) => {
+                        const wrap = els[0], select = els[1]
+                        if (!wrap || !select || !current()) return
                         wrap.setAttribute("class", "vtss-switcher" + (anchor.how === "after" ? "" : " vtss-below"))
                         wrap.setAttribute("data-media-id", String(mediaId))
                         wrap.setAttribute("data-place", place)
+                        wrap.setAttribute("data-sig", sig)
                         // Layout and sizes (phone and desktop) come from the plugin's style sheet
                         ensureStyle()
+                        wrap.setInnerHTML("<span class=\"vtss-label\">" + escapeHtml(t("label")) + "</span>")
+                        select.setAttribute("class", "vtss-select")
+                        select.setAttribute("aria-label", t("label"))
                         // Dark colours also inline: right after installing, the select can be on the
                         // page before the style sheet, and then it was a white browser box
-                        wrap.setInnerHTML(
-                            "<span class=\"vtss-label\">" + escapeHtml(t("label")) + "</span>" +
-                            "<select class=\"vtss-select\" style=\"color-scheme:dark;background-color:#151515;color:#fff;" +
-                            "border:1px solid rgba(255,255,255,.18);border-radius:.6rem\">" + optionsHtml + "</select>",
-                        )
-                        // Another anime was opened meanwhile: this dropdown belongs to the old one
-                        if (state.mediaId !== mediaId) return
+                        select.setAttribute("style", "color-scheme:dark;background-color:#151515;color:#fff;" +
+                            "border:1px solid rgba(255,255,255,.18);border-radius:.6rem")
+                        select.setInnerHTML(options.map((o) =>
+                            "<option value=\"" + o.id + "\"" + (o.id === mediaId ? " selected" : "") + ">" +
+                            escapeHtml(o.label) + "</option>",
+                        ).join(""))
+                        // The listener goes on the select itself before it is on the page, so a
+                        // dropdown on the page always works
+                        select.addEventListener("change", () => {
+                            Promise.resolve(select.getProperty("value")).then(pickSeason).catch(() => {})
+                        })
+                        wrap.append(select)
                         if (anchor.how === "after") anchor.el.after(wrap)
                         else if (anchor.how === "before") anchor.el.before(wrap)
                         else anchor.el.append(wrap)
-                        return wrap.queryOne("select").then((select) => {
-                            if (!select) return
-                            select.addEventListener("change", () => {
-                                Promise.resolve(select.getProperty("value")).then((value) => {
-                                    const id = parseInt(String(value), 10)
-                                    if (id && id !== state.mediaId) openSeason(id)
-                                })
-                            })
-                        })
                     })
                 })
                 .catch((e) => console.warn("season-switcher: could not add the dropdown", e))
                 .then(() => {
-                    state.injecting = false
+                    if (state.injectToken !== token) return
+                    state.injectAt = 0
+                    if (state.injectAgain) {
+                        state.injectAgain = false
+                        inject()
+                    }
                 })
         }
 
@@ -715,13 +786,17 @@ function init() {
         }
 
         function mergeRows() {
-            if (rows.running) {
+            // A run whose DOM requests got no answer (see INJECT_MS) doesn't block the next ones
+            if (rows.running && Date.now() - rows.runAt < 8000) {
                 rows.again = true
                 return
             }
             if (!MERGE_PAGES[state.pathname] || pref("mergeLibrary", "yes") !== "yes") return
             rows.running = true
-            const latest = pref("mergeKeep", "first") === "latest"
+            rows.runAt = Date.now()
+            const runToken = rows.runToken = (rows.runToken || 0) + 1
+            const keepMode = pref("mergeKeep", "current")
+            const latest = keepMode === "latest"
             const openCurrent = pref("openCurrent", "yes") === "yes"
             // Your list is read once per run (it is kept for a minute anyway)
             const entries = listEntries()
@@ -763,18 +838,19 @@ function init() {
                                 ctx.dom.asElement(slot.hide).removeStyle("display")
                             }
                             if (shouldHide) return
-                            // A card of a later season: show the series under its first season
+                            const seasons = seasonsOf(Object.keys(rel).map((k) => rel[k]).filter((n) => n && find(n.id) === find(id)))
+                            const st = seriesState(seasons, entries)
+                            // The card shows the season you are at ("current", the default), or
+                            // the series under its first season ("first")
                             let target = null
                             if (!latest) {
-                                const first = firstSeason(rel, find, id)
-                                if (first && first.id !== id) {
-                                    swapCard(c, first)
-                                    target = first.id
+                                const show = keepMode === "current" && st && st.season ? st.season : firstSeason(rel, find, id)
+                                if (show && show.id !== id) {
+                                    swapCard(c, show)
+                                    target = show.id
                                 }
                             }
                             // A click opens the season you are at
-                            const seasons = seasonsOf(Object.keys(rel).map((k) => rel[k]).filter((n) => n && find(n.id) === find(id)))
-                            const st = seriesState(seasons, entries)
                             if (openCurrent && st && st.season && !st.done) target = st.season.id
                             cardLink(c, id, target)
                             seasonBadge(c, seasons.length, st)
@@ -783,6 +859,7 @@ function init() {
                 })
                 .catch((e) => console.warn("season-switcher: could not merge rows", e))
                 .then(() => {
+                    if (rows.runToken !== runToken) return
                     rows.running = false
                     if (rows.again) {
                         rows.again = false
@@ -951,7 +1028,26 @@ function init() {
             " .vtss-cover.vtss-cover-on::after { content: \"\"; width: 2.75rem; height: 2.75rem; border-radius: 50%;" +
             " border: 3px solid rgba(255,255,255,.15); border-top-color: rgb(var(--color-brand-500, 229 9 20)); animation: vtss-spin .8s linear infinite; }" +
             " @keyframes vtss-cover-in { from { opacity: 0; } to { opacity: 1; } }" +
-            " @keyframes vtss-spin { to { transform: rotate(360deg); } }"
+            " @keyframes vtss-spin { to { transform: rotate(360deg); } }" +
+            // Season and episode picker above the episode list next to the stream (stays on top
+            // while the list scrolls)
+            " .vtss-pk { position: sticky; top: 0; z-index: 6; display: flex; flex-direction: column; gap: .5rem;" +
+            " margin: 0 -.25rem .25rem; padding: .25rem .25rem .6rem; background: var(--background, #0b0b0b); }" +
+            " .vtss-pk-season, .vtss-pk-search { width: 100%; min-height: 40px; color-scheme: dark; background: #151515; color: #fff;" +
+            " border: 1px solid rgba(255,255,255,.18); border-radius: .6rem; padding: .4rem .75rem; font-size: 16px; font-weight: 600; }" +
+            " .vtss-pk-search { font-weight: 500; }" +
+            " .vtss-pk-season option { background: #151515; color: #fff; }" +
+            " @media (min-width: 1024px) { .vtss-pk-season, .vtss-pk-search { font-size: .9rem; min-height: 36px; } }" +
+            " .vtss-pk-results { display: flex; flex-direction: column; gap: .35rem; max-height: 45vh; overflow-y: auto; }" +
+            " .vtss-pk-results:empty { display: none; }" +
+            " .vtss-pk-ep { display: flex; align-items: center; gap: .65rem; padding: .3rem; border-radius: .5rem; cursor: pointer;" +
+            " -webkit-tap-highlight-color: transparent; touch-action: manipulation; }" +
+            " .vtss-pk-ep:hover { background: rgba(255,255,255,.08); }" +
+            " .vtss-pk-ep img, .vtss-pk-noimg { width: 6.5rem; aspect-ratio: 16/9; object-fit: cover; border-radius: .4rem; flex: none; background: rgba(255,255,255,.06); }" +
+            " .vtss-pk-text { min-width: 0; }" +
+            " .vtss-pk-num { font-weight: 700; font-size: .85rem; }" +
+            " .vtss-pk-title { color: var(--muted, #a1a1aa); font-size: .8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }" +
+            " .vtss-pk-empty { color: var(--muted, #a1a1aa); font-size: .8rem; padding: .25rem .1rem; }"
 
         function ensureStyle() {
             if (rows.styled) return
@@ -989,7 +1085,7 @@ function init() {
             rows.timer = ctx.setTimeout(() => {
                 rows.timer = null
                 mergeRows()
-            }, 400)
+            }, 150)
         }
 
         // -----------------------------------------------------------------------------------------
@@ -1083,15 +1179,30 @@ function init() {
         // Opens another season of the series from the dropdown. Always with the view in the
         // address: Seanime keeps the open player when only the id changes and the page was loaded
         // before, and then still asks the provider for the episode of the old season.
+        // While a stream plays the new season opens in the player (with the detour), otherwise
+        // on its episode list. Earlier, with the episode list as start page, a pick in the player
+        // only changed the address and Seanime kept playing the old season.
+        // When the page doesn't answer in time, the season still opens (without the detour).
         function openSeason(id) {
-            if (forceInfo) {
-                ctx.screen.navigateTo("/entry", { id: String(id), tab: INFO_TAB })
-                return
-            }
-            ctx.dom.queryOne(ONLINE_VIEW).then((el) => {
+            const plainOpen = () => ctx.screen.navigateTo("/entry", forceInfo ? { id: String(id), tab: INFO_TAB } : { id: String(id) })
+            queryOneOr(ONLINE_VIEW, 1200).then((el) => {
                 if (el) reopenEntry(id, { tab: "onlinestream" })
-                else ctx.screen.navigateTo("/entry", { id: String(id) })
-            }).catch(() => ctx.screen.navigateTo("/entry", { id: String(id) }))
+                else plainOpen()
+            }, plainOpen)
+        }
+
+        // queryOne that gives null after ms instead of waiting for good
+        function queryOneOr(selector, ms) {
+            return new Promise((resolve) => {
+                let done = false
+                const finish = (v) => {
+                    if (done) return
+                    done = true
+                    resolve(v || null)
+                }
+                ctx.dom.queryOne(selector).then(finish, () => finish(null))
+                ctx.setTimeout(() => finish(null), ms)
+            })
         }
 
         // Clicking an episode under "Continue watching" on the home page: Seanime opens the anime
@@ -1205,7 +1316,7 @@ function init() {
             heads.timer = ctx.setTimeout(() => {
                 heads.timer = null
                 seasonHeads()
-            }, 300)
+            }, 100)
         }
         function seasonHeads() {
             const pageId = state.mediaId
@@ -1239,7 +1350,7 @@ function init() {
         // Returns the combined collection (a promise), or undefined to keep Seanime's own
         function allSeasonsCollection(mediaId, col) {
             resetMerged()
-            if (pref("allSeasons", "yes") !== "yes" || !mediaId) return undefined
+            if (!combinedMode() || !mediaId) return undefined
             let franchise
             try { franchise = loadFranchise(mediaId) }
             catch (e) {
@@ -1321,8 +1432,6 @@ function init() {
                     console.warn("season-switcher: all seasons list", err)
                     r = undefined
                 }
-                if (r === undefined) noCombinedList(id)
-                else Promise.resolve(r).then((c) => { if (c === undefined) noCombinedList(id) }, () => noCombinedList(id))
                 return r
             },
             onSelectEpisode: (e) => {
@@ -1434,7 +1543,7 @@ function init() {
             cont.timer = ctx.setTimeout(() => {
                 cont.timer = null
                 renderContinue()
-            }, 400)
+            }, 120)
         }
 
         function continueEpisode(mediaId) {
@@ -1677,6 +1786,185 @@ function init() {
             }).catch(() => {})
         }
 
+        // -----------------------------------------------------------------------------------------
+        // Season and episode picker in the player
+        //
+        // Above the episode list next to the stream: a dropdown with every season of the series and
+        // a search field (episode number or title). Picking another season lists its episodes,
+        // typing filters them. A click switches to that season and plays the episode.
+
+        const PLAYER_LIST = ONLINE_VIEW + " [data-vc-element=\"inline-layout-episode-list-body\"]"
+        const PICKER_MAX = 60
+        const picker = { mediaId: 0, season: 0, query: "", token: 0, at: 0, again: false, renderToken: 0, timer: null }
+
+        function resetPicker() {
+            picker.mediaId = 0
+            picker.season = 0
+            picker.query = ""
+            picker.at = 0
+            picker.again = false
+            if (picker.timer) { picker.timer(); picker.timer = null }
+        }
+
+        function pickerSeasons() {
+            const options = state.options || []
+            return options.length ? options : [{ id: state.mediaId, label: "" }]
+        }
+
+        // Adds the picker when the player's episode list is there and it is missing (or belongs to
+        // another anime). Same guard as the dropdown: a run that got no answer counts as gone.
+        function syncPicker() {
+            const mediaId = state.mediaId
+            if (!mediaId || pref("playerPicker", "yes") !== "yes") return
+            if (picker.at && Date.now() - picker.at < INJECT_MS) {
+                picker.again = true
+                return
+            }
+            const token = ++picker.token
+            picker.at = Date.now()
+            picker.again = false
+            const seasons = pickerSeasons()
+            const sig = mediaId + ":" + optionsSig(seasons)
+            const current = () => picker.token === token && state.mediaId === mediaId
+
+            Promise.all([ctx.dom.queryOne(PLAYER_LIST), ctx.dom.query("[data-vtss-picker]")])
+                .then((res) => {
+                    const list = res[0], existing = res[1] || []
+                    if (!list || !current()) return
+                    if (existing.length === 1 && String((existing[0].attributes || {})["data-sig"] || "") === sig) return
+                    existing.forEach((el) => el.remove())
+                    if (picker.mediaId !== mediaId) {
+                        picker.mediaId = mediaId
+                        picker.season = mediaId
+                        picker.query = ""
+                    }
+                    return Promise.all([
+                        ctx.dom.createElement("div"), ctx.dom.createElement("select"), ctx.dom.createElement("input"),
+                        ctx.dom.createElement("div"), list.getChildren(),
+                    ]).then((els) => {
+                        const panel = els[0], select = els[1], input = els[2], results = els[3], children = els[4] || []
+                        if (!panel || !select || !input || !results || !current()) return
+                        ensureStyle()
+                        panel.setAttribute("class", "vtss-pk")
+                        panel.setAttribute("data-vtss-picker", "1")
+                        panel.setAttribute("data-sig", sig)
+                        select.setAttribute("class", "vtss-pk-season")
+                        select.setAttribute("aria-label", t("label"))
+                        select.setInnerHTML(seasons.map((o) =>
+                            "<option value=\"" + o.id + "\"" + (o.id === picker.season ? " selected" : "") + ">" +
+                            escapeHtml(o.label || t("label")) + "</option>").join(""))
+                        if (seasons.length < 2) select.setAttribute("style", "display:none")
+                        input.setAttribute("class", "vtss-pk-search")
+                        input.setAttribute("type", "search")
+                        input.setAttribute("autocomplete", "off")
+                        input.setAttribute("placeholder", t("pkSearch"))
+                        input.setAttribute("aria-label", t("pkSearch"))
+                        if (picker.query) input.setAttribute("value", picker.query)
+                        results.setAttribute("class", "vtss-pk-results")
+                        results.setAttribute("data-vtss-picker-results", "1")
+                        select.addEventListener("change", () => {
+                            Promise.resolve(select.getProperty("value")).then((v) => {
+                                const id = parseInt(String(v || ""), 10)
+                                if (!id) return
+                                picker.season = id
+                                renderPicker(results)
+                            }).catch(() => {})
+                        })
+                        input.addEventListener("input", () => {
+                            if (picker.timer) picker.timer()
+                            picker.timer = ctx.setTimeout(() => {
+                                picker.timer = null
+                                Promise.resolve(input.getProperty("value")).then((v) => {
+                                    picker.query = String(v || "").trim()
+                                    renderPicker(results)
+                                }).catch(() => {})
+                            }, 150)
+                        })
+                        // Enter plays the first hit
+                        input.addEventListener("keydown", (e) => {
+                            if (!e || e.key !== "Enter") return
+                            Promise.resolve(input.getProperty("value")).then((v) => {
+                                picker.query = String(v || "").trim()
+                                return pickerHits(picker.season, picker.query)
+                            }).then((hits) => {
+                                if (hits && hits.list.length) playEpisode(picker.season, hits.list[0].ep)
+                            }).catch(() => {})
+                        })
+                        panel.append(select)
+                        panel.append(input)
+                        panel.append(results)
+                        if (children[0]) children[0].before(panel)
+                        else list.append(panel)
+                        if (picker.season !== mediaId || picker.query) renderPicker(results)
+                    })
+                })
+                .catch((e) => console.warn("season-switcher: player picker", e))
+                .then(() => {
+                    if (picker.token !== token) return
+                    picker.at = 0
+                    if (picker.again) {
+                        picker.again = false
+                        syncPicker()
+                    }
+                })
+        }
+
+        // Episodes of a season that match the search: { list: [{ ep, title, image }], more }
+        function pickerHits(seasonId, query) {
+            return otherCollection(seasonId).then((col) => {
+                const q = String(query || "").toLowerCase()
+                const num = /^\d+$/.test(q) ? q : ""
+                const all = (((col && col.episodes) || []).filter((ep) => ep && ep.episodeNumber && (!ep.type || ep.type === "main")))
+                    .map((ep) => ({
+                        ep: ep.episodeNumber,
+                        title: ep.episodeTitle || "",
+                        image: (ep.episodeMetadata && ep.episodeMetadata.image) || "",
+                    }))
+                    .sort((a, b) => a.ep - b.ep)
+                let list = all
+                if (num) {
+                    // "5" finds episode 5 first, then 50-59, 105 ...
+                    list = all.filter((e) => String(e.ep).indexOf(num) !== -1)
+                        .sort((a, b) => (String(a.ep) === num ? -1 : 0) - (String(b.ep) === num ? -1 : 0) ||
+                            (String(a.ep).indexOf(num) === 0 ? 0 : 1) - (String(b.ep).indexOf(num) === 0 ? 0 : 1) || a.ep - b.ep)
+                }
+                else if (q) {
+                    list = all.filter((e) => e.title.toLowerCase().indexOf(q) !== -1 || t("pkEpisode", e.ep).toLowerCase().indexOf(q) !== -1)
+                }
+                return { list: list.slice(0, PICKER_MAX), more: list.length > PICKER_MAX }
+            })
+        }
+
+        function renderPicker(results) {
+            const token = ++picker.renderToken
+            const seasonId = picker.season
+            // This season without a search: Seanime's list right below shows it already
+            if (seasonId === state.mediaId && !picker.query) {
+                results.setInnerHTML("")
+                return
+            }
+            pickerHits(seasonId, picker.query).then((hits) => {
+                if (token !== picker.renderToken) return
+                if (!hits.list.length) {
+                    results.setInnerHTML("<div class=\"vtss-pk-empty\">" + escapeHtml(t("pkNone")) + "</div>")
+                    return
+                }
+                results.setInnerHTML(hits.list.map((e) =>
+                    "<div class=\"vtss-pk-ep\" data-vtss-ep=\"" + e.ep + "\" role=\"button\" tabindex=\"0\">" +
+                    (e.image ? "<img src=\"" + escapeHtml(e.image) + "\" alt=\"\" loading=\"lazy\">" : "<div class=\"vtss-pk-noimg\"></div>") +
+                    "<div class=\"vtss-pk-text\"><div class=\"vtss-pk-num\">" + escapeHtml(t("pkEpisode", e.ep)) + "</div>" +
+                    (e.title ? "<div class=\"vtss-pk-title\">" + escapeHtml(e.title) + "</div>" : "") + "</div></div>").join("") +
+                    (hits.more ? "<div class=\"vtss-pk-empty\">" + escapeHtml(t("pkMore")) + "</div>" : ""))
+                return results.query("[data-vtss-ep]").then((rows) => {
+                    if (token !== picker.renderToken) return
+                    ;(rows || []).forEach((row) => {
+                        const ep = parseInt(String((row.attributes || {})["data-vtss-ep"] || ""), 10)
+                        if (ep) row.addEventListener("click", () => playEpisode(seasonId, ep))
+                    })
+                })
+            }).catch((e) => console.warn("season-switcher: player picker", e))
+        }
+
         function setupEpisode(item) {
             if (!item || episodes.done[item.id]) return
             const mediaId = parseInt(String(item.attributes["data-media-id"] || state.mediaId || ""), 10)
@@ -1755,37 +2043,82 @@ function init() {
                 scheduleMergeRows()
             }
             const id = pathname === "/entry" ? parseInt(String((searchParams && searchParams.id) || ""), 10) : 0
-            if (id === state.mediaId) return
+            if (id === state.mediaId) {
+                // Same anime, other view (e.g. from the episode list into the player): make sure
+                // the dropdown and the player's season picker are there
+                if (id) {
+                    inject()
+                    syncPicker()
+                }
+                return
+            }
             state.mediaId = id || 0
             state.options = null
+            state.injectAt = 0
             if (merged.mediaId !== state.mediaId) resetMerged()
+            resetPicker()
             removeSwitchers()
             if (!id) return
+            loadSeasons(id)
+        }
 
-            // Let the page start rendering before the (blocking) AniList request. When AniList's
-            // limit is reached, it tries again by itself as soon as there is room (up to 5 times).
+        // The seasons for the dropdown. Known seasons (also old copies) come from the cache right
+        // away, so the dropdown is there together with the page instead of popping in later.
+        // Otherwise AniList is asked a moment later, so the page can start rendering before the
+        // (blocking) request. Whatever goes wrong, it tries again by itself (up to 6 times, longer
+        // pauses each time); before, one failed request meant no dropdown until you left the page.
+        function loadSeasons(id) {
             let tries = 0
+            const ready = (franchise) => {
+                const options = buildOptions(franchise, id)
+                if (state.mediaId !== id) return
+                state.options = options
+                inject()
+                syncPicker()
+                renewSeasons(id)
+            }
             const load = () => {
                 if (state.mediaId !== id) return
                 try {
-                    const options = buildOptions(loadFranchise(id), id)
-                    if (state.mediaId !== id) return
-                    state.options = options
-                    inject()
+                    ready(loadFranchise(id))
                 }
                 catch (e) {
                     console.warn("season-switcher: could not load seasons for " + id, e)
-                    if (ani.isLimit(e) && tries < 5) {
-                        tries++
-                        const w = ani.wait({ interactive: true })
-                        // Only say something when it takes a while
-                        if (w > 10000) checkRateLimit(e)
-                        ctx.setTimeout(load, Math.max(2000, w + 500))
+                    if (tries >= 6) {
+                        checkRateLimit(e)
+                        return
                     }
-                    else checkRateLimit(e)
+                    tries++
+                    const w = ani.isLimit(e) ? ani.wait({ interactive: true }) : 0
+                    // Only say something when it takes a while
+                    if (w > 10000) checkRateLimit(e)
+                    ctx.setTimeout(load, Math.max(1500 * tries, w + 500))
                 }
             }
-            ctx.setTimeout(load, 50)
+            let cached = null
+            try { cached = loadFranchise(id, true) } catch (e) {}
+            if (cached) ready(cached)
+            else ctx.setTimeout(load, 50)
+        }
+
+        // An old copy of this anime was used: renew it in the background once Seanime is done
+        // loading the page, and update the dropdown when something changed (e.g. a new season).
+        function renewSeasons(id) {
+            if (ani.get(id, { full: true })) return
+            ctx.setTimeout(() => {
+                if (state.mediaId !== id || ani.get(id, { full: true })) return
+                let ok = false
+                try { ok = ani.fetch([id], { deep: true }) } catch (e) { return }
+                if (!ok || state.mediaId !== id) return
+                try {
+                    const options = buildOptions(loadFranchise(id), id)
+                    if (state.mediaId !== id || optionsSig(options) === optionsSig(state.options)) return
+                    state.options = options
+                    inject()
+                    syncPicker()
+                }
+                catch (e) {}
+            }, 9000)
         }
 
         ctx.dom.onReady(() => {
@@ -1823,6 +2156,11 @@ function init() {
             })
             ctx.dom.observe(TAB_VIEW, (elements) => {
                 if (elements && elements.length && cover.until === "tab") ctx.setTimeout(() => hideCover("tab"), 200)
+                if (elements && elements.length) inject()
+            })
+            // The episode list next to the stream (re)appears: season and episode picker
+            ctx.dom.observe(PLAYER_LIST, (elements) => {
+                if (elements && elements.length) syncPicker()
             })
             ctx.dom.observe(CW_CARD, (elements) => {
                 ;(elements || []).forEach(setupContinueCard)
@@ -1839,5 +2177,33 @@ function init() {
             ctx.screen.onNavigate((e) => onPage(e.pathname, e.searchParams))
             ctx.screen.loadCurrent()
         })
+
+        // The page was loaded again (reload, Seanime's window reopened): the style sheet and every
+        // element the plugin added are gone, and requests that were open never get an answer
+        ctx.dom.onMainTabReady(() => {
+            rows.styled = false
+            ensureStyle()
+            state.injectAt = 0
+            picker.at = 0
+            inject()
+            syncPicker()
+        })
+
+        // Safety net: Seanime sometimes re-renders the anime page without the parts the observers
+        // watch, which took the dropdown along. Every few seconds the plugin checks that the
+        // dropdown (and the picker in the player) are still there and adds them again if not.
+        ctx.setInterval(() => {
+            if (!state.mediaId || !state.options || state.pending) return
+            const wantSwitcher = !combinedMode() && state.options.length >= 2
+            const wantPicker = pref("playerPicker", "yes") === "yes"
+            Promise.all([
+                wantSwitcher ? ctx.dom.queryOne(".vtss-switcher") : Promise.resolve(true),
+                wantPicker ? ctx.dom.queryOne(PLAYER_LIST) : Promise.resolve(null),
+                wantPicker ? ctx.dom.queryOne("[data-vtss-picker]") : Promise.resolve(null),
+            ]).then((res) => {
+                if (!res[0]) inject()
+                if (res[1] && !res[2]) syncPicker()
+            }).catch(() => {})
+        }, 2500)
     })
 }

@@ -423,6 +423,7 @@ setImmediate(() => {
                     assert.strictEqual(warmCalls, 1)
                 })
                 check("all seasons in one list: no dropdown (either or)", () => {
+                    store.set("vsuite:settings", Object.assign({}, store.get("vsuite:settings") || {}, { allSeasons: "yes" }))
                     created.length = 0
                     navigateCb({ pathname: "/entry", searchParams: { id: "2" } })
                     assert.ok(!created.some((c) => c.attributes && c.attributes.class === "vtss-switcher"), "dropdown should be off")
@@ -439,10 +440,13 @@ setImmediate(() => {
                         store.set("vsuite:settings", st)
                         const wrap = created.find((c) => c.attributes && c.attributes.class === "vtss-switcher")
                         assert.ok(wrap, "dropdown not added")
-                        assert.ok(wrap.html.includes("✓ Show (2020)"), "finished season mark missing: " + wrap.html)
-                        assert.ok(wrap.html.includes("Show Season 2 (2021) · 5/12"), "progress missing")
-                        assert.ok(wrap.html.includes("nicht auf deiner Liste"), "not on list missing")
-                        assert.ok(!wrap.html.includes("Show Movie"), "movie should be hidden by default")
+                        const select = wrap.children.find((c) => c.tagName === "SELECT")
+                        assert.ok(select, "no select in the dropdown")
+                        assert.ok(select.html.includes("✓ Show (2020)"), "finished season mark missing: " + select.html)
+                        assert.ok(select.html.includes("Show Season 2 (2021) · 5/12"), "progress missing")
+                        assert.ok(select.html.includes("nicht auf deiner Liste"), "not on list missing")
+                        assert.ok(!select.html.includes("Show Movie"), "movie should be hidden by default")
+                        assert.ok(select.listeners.change, "the select has no listener")
                     })
                     check("episode tab plays online stream", () => {
                         navigations.length = 0
@@ -754,12 +758,14 @@ setImmediate(() => {
                             const content = makeElement("div")
                             content.getChildren = () => Promise.resolve([first])
                             domElements["[data-anime-entry-page-content]"] = content
+                            store.set("vsuite:settings", Object.assign({}, store.get("vsuite:settings") || {}, { allSeasons: "no" }))
                             navigateCb({ pathname: "/entry", searchParams: { id: "2" } })
                         })
                     }))))))
                     setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => setImmediate(() => {
                         check("dropdown is in front of the episode list", () => {
                             delete domElements["[data-anime-entry-page-content]"]
+                            store.set("vsuite:settings", Object.assign({}, store.get("vsuite:settings") || {}, { allSeasons: "yes" }))
                             const wrap = belowCreated.find((c) => c.attributes && /vtss-switcher/.test(c.attributes.class))
                             assert.ok(wrap, "dropdown not placed above the list")
                             assert.ok(/vtss-below/.test(wrap.attributes.class))
@@ -803,7 +809,9 @@ setImmediate(() => {
                             const card = (id) => {
                                 const c = makeElement("div", { "data-media-id": String(id), "data-media-type": "anime" })
                                 const bodyEl = makeElement("div")
-                                c.queryOne = (sel) => Promise.resolve(sel === "[data-media-entry-card-body]" ? bodyEl : null)
+                                const titleEl = makeElement("div")
+                                c.queryOne = (sel) => Promise.resolve(sel === "[data-media-entry-card-body]" ? bodyEl : sel === "[data-media-entry-card-title-section-title]" ? titleEl : null)
+                                c.title = titleEl
                                 c.body = bodyEl
                                 c.getParent = () => Promise.resolve(c.parentEl)
                                 c.setStyle = (k, v) => cardCalls.push([id, k, v])
@@ -836,6 +844,10 @@ setImmediate(() => {
                             const badge = a.body.children.find((c) => c.attributes.class === "vtss-seasons")
                             assert.ok(badge, "no badge")
                             assert.strictEqual(badge.text, "3 Staffeln · S2 5/12")
+                        })
+                        check("home page cards: a card shows the season you are watching", () => {
+                            const c1 = Object.values(cardEls).find((c) => c.attributes["data-media-id"] === "1")
+                            assert.strictEqual(c1.title.text, "Show Season 2")
                         })
                         check("home page cards: the season 1 card opens season 2, where you are", () => {
                             const c1 = Object.values(cardEls).find((c) => c.attributes["data-media-id"] === "1")
@@ -911,10 +923,77 @@ setImmediate(() => {
                             }))
                         }))
                     }, 140)
+                    // 1.13: defaults, a dropdown run that got no answer, the picker in the player
+                    setTimeout(() => {
+                        const setSt = (patch) => store.set("vsuite:settings", Object.assign({}, store.get("vsuite:settings") || {}, patch))
+                        check("new install: dropdown and the season you are watching are the defaults", () => {
+                            const init = page.channel.sent.filter((m) => m.name === "init").pop()
+                            const fields = []
+                            init.payload.fields.forEach((sec) => sec.fields.forEach((f) => fields.push(f)))
+                            assert.strictEqual(fields.find((f) => f.key === "allSeasons").default, "no")
+                            assert.strictEqual(fields.find((f) => f.key === "mergeKeep").default, "current")
+                            assert.strictEqual(fields.find((f) => f.key === "playerPicker").default, "yes")
+                        })
+                        setSt({ allSeasons: "no" })
+                        navigateCb({ pathname: "/", searchParams: {} })
+                        const realQuery = ctx.dom.query
+                        ctx.dom.query = (sel) => sel === ".vtss-switcher" ? new Promise(() => {}) : realQuery(sel)
+                        created.length = 0
+                        navigateCb({ pathname: "/entry", searchParams: { id: "2" } })
+                        ctx.dom.query = realQuery
+                        clockOffset += 5000
+                        observers.filter((o) => o.sel === "[data-media-page-header-entry-details-title-container]").forEach((o) => o.cb([titleContainer]))
+                        const PL = "[data-anime-entry-page-online-streaming-view] [data-vc-element=\"inline-layout-episode-list-body\"]"
+                        const list = makeElement("div")
+                        domElements[PL] = list
+                        observers.filter((o) => o.sel === PL).forEach((o) => o.cb([list]))
+                        setImmediate(() => setImmediate(() => setImmediate(() => {
+                            check("dropdown: a run that got no answer doesn't block the next one", () => {
+                                assert.ok(created.some((c) => c.attributes && c.attributes.class === "vtss-switcher"), "dropdown not added again")
+                            })
+                            const panel = list.children.find((c) => c.attributes["data-vtss-picker"])
+                            check("player: season picker and search above the episode list", () => {
+                                assert.ok(panel, "no picker")
+                                const sel = panel.children.find((c) => c.tagName === "SELECT")
+                                const input = panel.children.find((c) => c.tagName === "INPUT")
+                                assert.ok(sel && input, "select or search missing")
+                                assert.ok(sel.html.includes("Show Season 3"), sel.html)
+                                assert.ok(/selected/.test(sel.html.split("Show Season 2")[0].split("<option").pop()), "this season not selected")
+                                assert.strictEqual(input.attributes.placeholder, "Folge suchen: Nummer oder Titel")
+                            })
+                            if (!panel) return
+                            const sel = panel.children.find((c) => c.tagName === "SELECT")
+                            const input = panel.children.find((c) => c.tagName === "INPUT")
+                            const results = panel.children.find((c) => c.attributes["data-vtss-picker-results"])
+                            const row = makeElement("div", { "data-vtss-ep": "4" })
+                            results.query = () => Promise.resolve([row])
+                            sel.value = "3"
+                            sel.listeners.change()
+                            setImmediate(() => setImmediate(() => setImmediate(() => {
+                                check("player: another season lists its episodes", () => {
+                                    assert.ok(results.html.includes("Folge 3") && results.html.includes("Folge 5"), results.html)
+                                })
+                                check("player: a click switches to the season and plays the episode", () => {
+                                    assert.ok(row.listeners.click, "no click handler")
+                                    row.listeners.click()
+                                    const last = navigations[navigations.length - 1]
+                                    assert.strictEqual(JSON.stringify(last.params), JSON.stringify({ id: "3", tab: "onlinestream", episode: "4" }))
+                                })
+                                input.value = "5"
+                                input.listeners.input()
+                                setImmediate(() => setImmediate(() => setImmediate(() => {
+                                    check("player: search by number", () => {
+                                        assert.ok(results.html.includes("Folge 5") && !results.html.includes("Folge 4"), results.html)
+                                    })
+                                    delete domElements[PL]
+                                })))
+                            })))
+                        })))
+                    }, 170)
                     setTimeout(() => {
                         console.log(failures ? "\n" + failures + " failed" : "\nall passed")
                         process.exitCode = failures ? 1 : 0
-                    }, 200)
+                    }, 260)
                 }))
             })
         })

@@ -232,11 +232,11 @@ const VS_FIELDS = [
               options: [["english", "English"], ["romaji", "Romaji"], ["native", "Native / 日本語"]] },
             { key: "switcherPlace", default: "episodes", showIf: ["allSeasons", "no"], label: { de: "Wo das Staffel-Dropdown steht", en: "Where the season dropdown goes" },
               options: [["episodes", { de: "Unter den Knöpfen, über den Folgen", en: "Below the buttons, above the episodes" }], ["title", { de: "Unter dem Titel", en: "Below the title" }]] },
-            { key: "allSeasons", default: "yes", label: { de: "Folgenliste", en: "Episode list" },
-              options: [["yes", { de: "Alle Staffeln in einer Liste, ohne Dropdown", en: "All seasons in one list, no dropdown" }],
-                        ["no", { de: "Pro Staffel, mit Staffel-Dropdown", en: "One season at a time, with the season dropdown" }]],
-              hint: { de: "Entweder oder. Eine Liste: Staffel 1, 2, 3 … untereinander mit Überschrift, ein Klick startet die Folge der richtigen Staffel. Pro Staffel: jede Staffel für sich, du wechselst mit dem Dropdown. Filme ohne Staffel-Liste behalten das Dropdown.",
-                      en: "Either or. One list: season 1, 2, 3 … one after the other with a heading, a click starts the episode of the right season. One season at a time: you switch with the dropdown. Movies without a season list keep the dropdown." } },
+            { key: "allSeasons", default: "no", label: { de: "Folgenliste", en: "Episode list" },
+              options: [["no", { de: "Pro Staffel, mit Staffel-Dropdown", en: "One season at a time, with the season dropdown" }],
+                        ["yes", { de: "Alle Staffeln in einer Liste, ohne Dropdown", en: "All seasons in one list, no dropdown" }]],
+              hint: { de: "Entweder oder, nie beides. Pro Staffel (Standard): jede Staffel für sich, du wechselst mit dem Dropdown. Eine Liste: Staffel 1, 2, 3 … untereinander mit Überschrift, ein Klick startet die Folge der richtigen Staffel, ein Dropdown gibt es dann nicht.",
+                      en: "Either or, never both. One season at a time (default): you switch with the dropdown. One list: season 1, 2, 3 … one after the other with a heading, a click starts the episode of the right season, and there is no dropdown." } },
             { key: "openCurrent", default: "yes", label: { de: "Serie öffnet die Staffel, bei der du bist", en: "A series opens the season you are at" }, yesNo: true,
               hint: { de: "Ein Klick auf eine Karte öffnet die Staffel, die du gerade schaust (oder die nächste nach der letzten fertigen).",
                       en: "Clicking a card opens the season you are watching (or the one after the last you finished)." } },
@@ -247,13 +247,19 @@ const VS_FIELDS = [
             { key: "showProgress", default: "yes", label: { de: "Fortschritt im Staffel-Dropdown", en: "Progress in the season dropdown" }, yesNo: true,
               hint: { de: "z. B. „✓“ für fertig oder „5/12“", en: "e.g. \"✓\" when finished or \"5/12\"" } },
             { key: "mergeLibrary", default: "yes", label: { de: "Staffeln auf der Startseite und in „My lists“ zusammenfassen", en: "Merge seasons on the home page and in \"My lists\"" }, yesNo: true },
-            { key: "mergeKeep", default: "first", label: { de: "Welche Karte pro Serie", en: "Card to show per series" },
-              options: [["first", { de: "Erste Staffel", en: "First season" }], ["latest", { de: "Neueste Staffel", en: "Latest season" }]] },
+            { key: "mergeKeep", default: "current", label: { de: "Welche Karte pro Serie", en: "Card to show per series" },
+              options: [["current", { de: "Die Staffel, die du gerade schaust", en: "The season you are watching" }],
+                        ["first", { de: "Erste Staffel", en: "First season" }], ["latest", { de: "Neueste Staffel", en: "Latest season" }]],
+              hint: { de: "„Gerade schaust“: Titel, Bild und Jahr der Staffel, bei der du bist (oder der nächsten nach der letzten fertigen).",
+                      en: "\"Watching\": title, cover and year of the season you are at (or the one after the last you finished)." } },
             { key: "seasonBadge", default: "yes", label: { de: "Abzeichen „X Staffeln“ mit Stand auf den Karten", en: "\"X seasons\" badge with your progress on cards" }, yesNo: true,
               hint: { de: "z. B. „3 Staffeln · S2 5/12“ oder „3 Staffeln ✓“", en: "e.g. \"3 seasons · S2 5/12\" or \"3 seasons ✓\"" } },
             { key: "infoPage", restart: true, default: "yes", label: { de: "Anime-Seiten mit Folgenliste öffnen, Stream erst beim Klick", en: "Open anime pages on the episode list, stream only on click" }, yesNo: true,
               hint: { de: "„Nein“ lässt Seanime so, wie es ohne Optimierung ist.", en: "\"No\" leaves Seanime as it is without the optimisation." } },
             { key: "episodeClick", default: "yes", label: { de: "Folge anklicken startet Online-Stream", en: "Click an episode to start online streaming" }, yesNo: true },
+            { key: "playerPicker", default: "yes", label: { de: "Staffel und Folge im Player wählen", en: "Pick season and episode in the player" }, yesNo: true,
+              hint: { de: "Über der Folgenliste neben dem Stream: Staffel-Dropdown und Suche nach Nummer oder Titel. Ein Klick wechselt zur Staffel und spielt die Folge.",
+                      en: "Above the episode list next to the stream: season dropdown and search by number or title. A click switches to the season and plays the episode." } },
         ],
     },
     {
@@ -318,14 +324,18 @@ const VS_FIELDS = [
 // What changed in this version, shown at the bottom of the settings page
 const VS_CHANGES = {
     de: [
-        "1.12.1: „Weiterschauen“ auf der Startseite öffnet die Folge ohne Flackern: statt Folgenliste, Startseite und Anime-Seite nacheinander kommt ein kurzer Ladebildschirm und dann der Player",
-        "1.12.1: Auch beim Klick auf eine Folge in der Folgenliste und bei „Folgenübersicht“ verdeckt ein Ladebildschirm den Umweg über die Startseite",
-        "1.12.1: Staffel wechseln, während eine Folge läuft: der Player der alten Staffel wird sauber geschlossen, damit der Provider die neue Staffel lädt statt der Folge der alten",
+        "1.13.0: Das Staffel-Dropdown erscheint zuverlässig und reagiert immer, auch nachdem Seanime die Seite neu aufgebaut oder neu geladen hat",
+        "1.13.0: Bekannte Staffeln kommen sofort aus dem Speicher, das Dropdown ist mit der Seite da statt später hineinzuspringen; Folgenliste und Startseite ruckeln weniger",
+        "1.13.0: Die Startseite zeigt pro Serie die Staffel, die du gerade schaust (einstellbar unter „Welche Karte pro Serie“)",
+        "1.13.0: Folgenliste: entweder Dropdown oder alle Staffeln in einer Liste, nie beides. Neu installiert ist das Dropdown Standard",
+        "1.13.0: Im Player über der Folgenliste: Staffel wählen und Folge suchen (Nummer oder Titel), ein Klick wechselt zur Staffel und spielt die Folge",
     ],
     en: [
-        "1.12.1: \"Continue watching\" on the home page opens the episode without flickering: instead of the episode list, the home page and the anime page one after the other you see a short loading screen and then the player",
-        "1.12.1: Clicking an episode in the episode list and \"All episodes\" also hide the detour over the home page behind a loading screen",
-        "1.12.1: Switching seasons while an episode plays: the old season's player is closed properly, so the provider loads the new season instead of the old season's episode",
+        "1.13.0: The season dropdown shows up reliably and always responds, also after Seanime rebuilt or reloaded the page",
+        "1.13.0: Known seasons come straight from the cache, so the dropdown is there with the page instead of popping in later; less jumping in the episode list and on the home page",
+        "1.13.0: The home page shows the season you are watching for each series (setting \"Card to show per series\")",
+        "1.13.0: Episode list: either the dropdown or all seasons in one list, never both. On a new install the dropdown is the default",
+        "1.13.0: In the player above the episode list: pick a season and search an episode (number or title), a click switches to the season and plays the episode",
     ],
 }
 
@@ -346,12 +356,17 @@ function vsLoadSettings() {
     }
     // Version 1.0 only had the theme on or off
     if (s.theme === "on") s.theme = "red"
+    // 1.13: home page cards show the season you are watching. "First season" was the default
+    // before and is moved over once; picked again afterwards, it stays.
+    if (saved && typeof saved === "object" && saved.vsMigrated !== "1.13" && s.mergeKeep === "first") s.mergeKeep = "current"
     // Online streaming only since 1.1
     delete s.playMethod
     return s
 }
 
 function vsSaveSettings(s) {
+    // Marks the settings as moved over to 1.13 (see vsLoadSettings)
+    s.vsMigrated = "1.13"
     try { $storage.set(VS_SETTINGS_KEY, s) } catch (e) { console.error("viktempest-ui: could not save settings", e) }
     try { $store.set(VS_SETTINGS_KEY, s) } catch (e) {}
 }
