@@ -1,9 +1,9 @@
 {
-  "id": "aniworld",
+  "id": "aniworld-fixed",
   "name": "AniWorld",
   "description": "AniWorld is an online streaming provider for german dubs.",
   "manifestURI": "https://raw.githubusercontent.com/vikTempest/vikTempest-Seanime-UI/main/providers/aniworld/manifest.json",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "author": "Pal, vikTempest",
   "type": "onlinestream-provider",
   "language": "javascript",
