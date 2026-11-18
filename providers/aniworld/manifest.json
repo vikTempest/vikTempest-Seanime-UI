@@ -1,10 +1,10 @@
 {
   "id": "aniworld",
   "name": "AniWorld",
-  "description": "AniWorld is an online streaming provider for german dubs. By Pal, with fixes for later seasons and the VidMoly stream.",
+  "description": "AniWorld is an online streaming provider for german dubs.",
   "manifestURI": "https://raw.githubusercontent.com/vikTempest/vikTempest-Seanime-UI/main/providers/aniworld/manifest.json",
-  "version": "1.5.0",
-  "author": "Pal",
+  "version": "1.5.1",
+  "author": "Pal, vikTempest",
   "type": "onlinestream-provider",
   "language": "javascript",
   "lang": "de",
