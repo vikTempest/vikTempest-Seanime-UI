@@ -40,7 +40,7 @@ Installieren: unter **Extensions** → „Add extensions“ → „Install from 
 https://raw.githubusercontent.com/vikTempest/vikTempest-Seanime-UI/main/providers/aniworld/manifest.json
 ```
 
-Vorher unter **Extensions** das alte „AniWorld“ (von Pal) deinstallieren, sonst kann Seanime die gleiche ID nicht noch einmal installieren. Danach beim Stream „AniWorld“ wählen. Auf der Karte unter Extensions steht die Version (aktuell 1.5.0) und Pal als Autor. Der Hinweis „marked Broken“ kann trotzdem erscheinen, weil Seanime ihn an der ID des Marketplace-Eintrags festmacht; der Stream läuft aber. Passt eine Staffel trotzdem nicht, hilft „Manual match“ beim Stream: dort z. B. „Re:Zero Season 2“ suchen.
+Vorher unter **Extensions** das bisherige „AniWorld“ aus dem Marketplace und, falls installiert, „AniWorld (VikTempest)“ deinstallieren, sonst kann Seanime die gleiche ID nicht noch einmal installieren. Danach beim Stream „AniWorld“ wählen. Auf der Karte unter Extensions steht die Version (aktuell 1.5.0) und Pal als Autor. Der Hinweis „marked Broken“ kann trotzdem erscheinen, weil Seanime ihn an der ID des Marketplace-Eintrags festmacht; der Stream läuft aber. Passt eine Staffel trotzdem nicht, hilft „Manual match“ beim Stream: dort z. B. „Re:Zero Season 2“ suchen.
 
 ## Einstellungen
 
