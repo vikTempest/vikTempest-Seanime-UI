@@ -28,6 +28,20 @@ Beim ersten Start passieren zwei Dinge:
 
 **Umstieg von den einzelnen Plugins:** Deinstalliere unter **Extensions** vorher **Season Switcher** und **AniList Custom Ratings**, sonst läuft alles doppelt. Den einzelnen Season Switcher (`season-switcher.json`) gibt es nicht mehr. Hast du das Netflix-Theme unter Einstellungen → User Interface → CSS eingefügt, leere dort die Felder. Deine Bewertungen und Listen liegen auf AniList und bleiben erhalten.
 
+## AniWorld-Provider
+
+Der AniWorld-Provider aus dem Marketplace (1.2.0) öffnet eine spätere Staffel nur, wenn im Titel „Season 2“ steht. Bei Titeln wie „2nd Season“, „Mushoku Tensei II“ oder „Kimetsu no Yaiba: Yuukaku-hen“ zeigt er die Folgen von Staffel 1 oder findet nichts, und Seanime meldet ein Problem mit dem Provider.
+
+**AniWorld (VikTempest)** findet die Staffel auch dann: aus dem Titel („Season 2“, „2nd Season“, „Staffel 2“, „II“), aus den anderen Titeln des Anime und sonst über AniList (wie viele TV-Staffeln vorher kommen). Findet die Suche mit dem ganzen Titel nichts, versucht sie kürzere. Folgen und Streams lädt er wie das Original (VidMoly).
+
+Installieren: unter **Extensions** → „Add extensions“ → „Install from URL“:
+
+```
+https://raw.githubusercontent.com/vikTempest/vikTempest-Seanime-UI/main/providers/aniworld/manifest.json
+```
+
+Danach beim Stream oben als Provider „AniWorld (VikTempest)“ wählen. Passt eine Staffel trotzdem nicht, hilft „Manual match“ beim Stream: dort z. B. „Re:Zero Season 2“ suchen.
+
 ## Einstellungen
 
 Alle Einstellungen stehen auf einer eigenen Seite. So kommst du hin:

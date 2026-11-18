@@ -1,0 +1,13 @@
+{
+  "id": "aniworld-vt",
+  "name": "AniWorld (VikTempest)",
+  "description": "AniWorld (aniworld.to) with German dub and sub. Finds later seasons also when the title has no \"Season 2\" (2nd Season, II, arc names). Based on AniWorld by Pal.",
+  "manifestURI": "https://raw.githubusercontent.com/vikTempest/vikTempest-Seanime-UI/main/providers/aniworld/manifest.json",
+  "version": "1.3.0",
+  "author": "vikTempest",
+  "type": "onlinestream-provider",
+  "language": "javascript",
+  "lang": "de",
+  "icon": "https://raw.githubusercontent.com/Pal-droid/Seanime-Providers/main/public/aniworld.png",
+  "payloadURI": "https://raw.githubusercontent.com/vikTempest/vikTempest-Seanime-UI/main/providers/aniworld/provider.js"
+}

@@ -18,3 +18,5 @@ jobs:
         run: git diff --exit-code -- viktempest-ui.json || (echo "Run python3 suite/build.py . and commit viktempest-ui.json" && exit 1)
       - name: Smoke test
         run: node test/smoke.js
+      - name: AniWorld provider
+        run: node test/aniworld.js
