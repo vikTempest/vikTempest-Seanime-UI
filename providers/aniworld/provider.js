@@ -1,9 +1,10 @@
 /// <reference path="./online-streaming-provider.d.ts" />
 
-// AniWorld (VikTempest): online streaming provider for aniworld.to (German dub and sub).
+// AniWorld: online streaming provider for aniworld.to (German dub and sub).
 //
-// Based on "AniWorld" 1.2.0 by Pal (Seanime-contributions/Seanime-Providers). The scraping of
-// episodes and streams is unchanged. What is new is how the right season is found:
+// Written by Pal: https://github.com/Pal-droid/Seanime-Providers (src/anime/aniworld).
+// All credit for this provider goes to him. This copy only adds fixes until they are in his
+// version; the scraping of episodes and streams is his.
 //
 // The original only opens a later season when the title Seanime searches with contains
 // "Season 2". AniList titles often don't: "Re:Zero ... 2nd Season", "Mushoku Tensei II",

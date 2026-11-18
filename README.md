@@ -32,7 +32,7 @@ Beim ersten Start passieren zwei Dinge:
 
 Der AniWorld-Provider aus dem Marketplace (1.2.0) öffnet eine spätere Staffel nur, wenn im Titel „Season 2“ steht. Bei Titeln wie „2nd Season“, „Mushoku Tensei II“ oder „Kimetsu no Yaiba: Yuukaku-hen“ zeigt er die Folgen von Staffel 1 oder findet nichts, und Seanime meldet ein Problem mit dem Provider.
 
-**AniWorld (VikTempest)** findet die Staffel auch dann: aus dem Titel („Season 2“, „2nd Season“, „Staffel 2“, „II“), aus den anderen Titeln des Anime und sonst über AniList (wie viele TV-Staffeln vorher kommen). Findet die Suche mit dem ganzen Titel nichts, versucht sie kürzere. Ist ein Anime auf AniList nur die zweite Hälfte einer Staffel (z. B. Food Wars „San no Sara – Tootsuki Ressha-hen“), nimmt er auf AniWorld die Folgen hinter der ersten Hälfte. Den VidMoly-Stream lädt er mit VidMoly als Referer (ohne den lädt der Player endlos, deshalb steht das Original im Marketplace auf „Broken“). Fehlt der Stream, steht in der Fehlermeldung, welche Hoster und Sprachen AniWorld für die Folge hat. Folgen und Streams lädt er wie das Original (VidMoly).
+Der Provider ist von **Pal** ([Pal-droid/Seanime-Providers](https://github.com/Pal-droid/Seanime-Providers)), ihm gehört der Code und die Anerkennung. Hier liegt nur eine Kopie mit Korrekturen, bis sie in seiner Version sind. Sie heißt genauso („AniWorld“, gleiche ID, Autor „Pal, vikTempest“) und ersetzt das Original. Sie findet die Staffel auch dann: aus dem Titel („Season 2“, „2nd Season“, „Staffel 2“, „II“), aus den anderen Titeln des Anime und sonst über AniList (wie viele TV-Staffeln vorher kommen). Findet die Suche mit dem ganzen Titel nichts, versucht sie kürzere. Ist ein Anime auf AniList nur die zweite Hälfte einer Staffel (z. B. Food Wars „San no Sara – Tootsuki Ressha-hen“), nimmt er auf AniWorld die Folgen hinter der ersten Hälfte. Den VidMoly-Stream lädt er mit VidMoly als Referer (ohne den lädt der Player endlos, deshalb steht das Original im Marketplace auf „Broken“). Fehlt der Stream, steht in der Fehlermeldung, welche Hoster und Sprachen AniWorld für die Folge hat. Folgen und Streams lädt er wie das Original (VidMoly).
 
 Installieren: unter **Extensions** → „Add extensions“ → „Install from URL“:
 
@@ -40,7 +40,7 @@ Installieren: unter **Extensions** → „Add extensions“ → „Install from 
 https://raw.githubusercontent.com/vikTempest/vikTempest-Seanime-UI/main/providers/aniworld/manifest.json
 ```
 
-Danach beim Stream oben als Provider „AniWorld (VikTempest)“ wählen und das alte „AniWorld“ unter Extensions deinstallieren, damit es nicht aus Versehen gewählt bleibt. Unter Extensions zeigt die Karte die Version (aktuell 1.5.0); ist sie älter, dort „Update“ drücken. Passt eine Staffel trotzdem nicht, hilft „Manual match“ beim Stream: dort z. B. „Re:Zero Season 2“ suchen.
+Vorher unter **Extensions** das bisherige „AniWorld“ aus dem Marketplace und, falls installiert, „AniWorld (VikTempest)“ deinstallieren, sonst kann Seanime die gleiche ID nicht noch einmal installieren. Danach beim Stream „AniWorld“ wählen. Auf der Karte unter Extensions steht die Version (aktuell 1.5.1) und „Pal, vikTempest“ als Autor. Der Hinweis „marked Broken“ kann trotzdem erscheinen, weil Seanime ihn an der ID des Marketplace-Eintrags festmacht; der Stream läuft aber. Passt eine Staffel trotzdem nicht, hilft „Manual match“ beim Stream: dort z. B. „Re:Zero Season 2“ suchen.
 
 ## Einstellungen
 
