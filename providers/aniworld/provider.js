@@ -1,157 +1,305 @@
 /// <reference path="./online-streaming-provider.d.ts" />
 
-// AniWorld: online streaming provider for aniworld.to (German dub and sub).
+// AniWorld for Seanime: German dub and sub from aniworld.to, played through VidMoly.
+// Written from scratch by vikTempest.
 //
-// Written by Pal: https://github.com/Pal-droid/Seanime-Providers (src/anime/aniworld).
-// All credit for this provider goes to him. This copy only adds fixes until they are in his
-// version; the scraping of episodes and streams is his.
-//
-// The original only opens a later season when the title Seanime searches with contains
-// "Season 2". AniList titles often don't: "Re:Zero ... 2nd Season", "Mushoku Tensei II",
-// "Kimetsu no Yaiba: Yuukaku-hen", "Boku no Hero Academia 3". Then it opened season 1 (wrong
-// episodes) or found nothing at all ("problems" in Seanime).
-//
-// Here the season comes from, in this order:
-//   1. the title: "Season 2", "2nd Season", "Staffel 2", "II" at the end
-//   2. the other titles of the anime (synonyms) with the same patterns
-//   3. AniList: the number of TV seasons before this one (prequel chain)
-// Long shows are cut into seasons differently: AniList has Black Clover as one anime with 170
-// episodes, aniworld.to as Staffel 1-4. So when AniList knows all episodes before this anime,
-// that count decides: anime with 170 episodes before it = aniworld.to episode 171 onwards,
-// in whichever Staffel that is. The season number above is only the fallback.
-// The second half of a season (its own anime on AniList, e.g. "Shokugeki no Souma: San no Sara -
-// Tootsuki Ressha-hen") gets the episodes after the first half of that season on aniworld.to.
-// and the search on aniworld.to tries shorter titles when the full one finds nothing
-// (without the season marker, without the part after ":", the first words).
+// How an anime from AniList is found on aniworld.to:
+//   - aniworld.to has one page per show with "Staffel 1, 2, ..." and "Filme".
+//   - AniList has one entry per season, and splits or joins seasons differently.
+//     Black Clover: AniList 170 episodes in one entry, aniworld.to Staffel 1-4.
+//     Food Wars: AniList "San no Sara" and "Tootsuki Ressha-hen", aniworld.to one Staffel 3.
+//   - So the provider walks the AniList prequels and counts the TV episodes before this entry.
+//     With 170 episodes before it, the entry starts at aniworld.to episode 171, in whichever
+//     Staffel that is. If that count isn't usable, the season number decides: from the title
+//     ("Season 2", "2nd Season", "II", "Staffel 2") or from the number of TV seasons before it.
 
+const SITE = "https://aniworld.to"
 const ANILIST = "https://graphql.anilist.co"
-const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"
-const SEASON_FORMATS = { TV: true, TV_SHORT: true }
+const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36"
+const TV = { TV: true, TV_SHORT: true }
+// aniworld.to language keys: 1 German, 2 English subtitles, 3 German subtitles
+const LANGS = { dub: ["1"], sub: ["3", "2", "1"] }
+const LANG_NAMES = { "1": "Deutsch", "2": "Englisch (UT)", "3": "Deutsch (UT)" }
 const ROMAN = { II: 2, III: 3, IV: 4, V: 5, VI: 6, VII: 7, VIII: 8, IX: 9, X: 10 }
+const PAGE_TTL = 10 * 60 * 1000
 
-// Season number written in a title, or 0
-function seasonInTitle(title) {
+// ---------------------------------------------------------------- titles
+
+// Season number written in a title, 0 if none
+function titleSeason(title) {
     const t = String(title || "")
-    let m = t.match(/\bseason\s*(\d+)/i) || t.match(/\bstaffel\s*(\d+)/i)
-    if (m) return parseInt(m[1], 10)
-    m = t.match(/\b(\d+)\s*(?:st|nd|rd|th)\s+season\b/i)
-    if (m) return parseInt(m[1], 10)
-    m = t.match(/\s(II|III|IV|V|VI|VII|VIII|IX|X)(?=\s*(?::|-|$))/)
-    if (m) return ROMAN[m[1]]
-    return 0
+    const patterns = [
+        /\bseason\s*(\d+)/i,
+        /\bstaffel\s*(\d+)/i,
+        /\b(\d+)\s*(?:st|nd|rd|th)\s+season\b/i,
+    ]
+    for (const re of patterns) {
+        const m = t.match(re)
+        if (m) return parseInt(m[1], 10)
+    }
+    const roman = t.match(/\s(II|III|IV|V|VI|VII|VIII|IX|X)(?=\s*(?::|-|$))/)
+    return roman ? ROMAN[roman[1]] : 0
 }
 
-// The title without season markers and extras that aniworld.to doesn't know
-function cleanTitle(title) {
+// Title without season markers and extras aniworld.to doesn't have in its names
+function baseTitle(title) {
     return String(title || "")
-        .replace(/\b\d+\s*(?:st|nd|rd|th)\s+season\b/ig, "")
-        .replace(/\bseason\s*\d+/ig, "")
-        .replace(/\bstaffel\s*\d+/ig, "")
-        .replace(/\s(II|III|IV|V|VI|VII|VIII|IX|X)(?=\s*(?::|-|$))/g, "")
-        .replace(/\b(?:part|cour)\s*\d+\b/ig, "")
-        .replace(/\((?:tv|\d{4})\)/ig, "")
-        .replace(/\bmovie\b/ig, "")
-        .replace(/\s{2,}/g, " ")
+        .replace(/\b\d+\s*(?:st|nd|rd|th)\s+season\b/ig, " ")
+        .replace(/\b(?:season|staffel)\s*\d+/ig, " ")
+        .replace(/\s(?:II|III|IV|V|VI|VII|VIII|IX|X)(?=\s*(?::|-|$))/g, " ")
+        .replace(/\b(?:part|cour)\s*\d+\b/ig, " ")
+        .replace(/\((?:tv|\d{4})\)/ig, " ")
+        .replace(/\bmovie\b/ig, " ")
+        .replace(/\s+/g, " ")
         .replace(/[\s:\-–]+$/, "")
         .trim()
 }
 
-// Search words to try one after the other, longest first
-function searchQueries(title) {
-    const out = []
+// What to type into the aniworld.to search, most exact first
+function searchTerms(title) {
+    const terms = []
     const add = (q) => {
-        q = String(q || "").replace(/\s{2,}/g, " ").trim()
-        if (q.length >= 2 && out.indexOf(q) < 0) out.push(q)
+        q = String(q || "").replace(/\s+/g, " ").trim()
+        if (q.length > 1 && terms.indexOf(q) < 0) terms.push(q)
     }
-    const clean = cleanTitle(title)
-    add(clean)
-    const head = clean.split(/\s*[:–]\s*|\s+-\s+/)[0]
+    const full = baseTitle(title)
+    add(full)
+    const head = full.split(/\s*[:–]\s*|\s+-\s+/)[0]
     add(head)
-    const words = head.split(/\s+/)
-    if (words.length > 3) add(words.slice(0, 3).join(" "))
-    if (words.length > 2) add(words.slice(0, 2).join(" "))
-    return out
+    const words = head.split(" ")
+    for (let n = Math.min(3, words.length - 1); n >= 2; n--) add(words.slice(0, n).join(" "))
+    return terms
 }
 
-// A TV entry that continues the season before it instead of starting a new one, e.g.
-// "Shokugeki no Souma: San no Sara - Tootsuki Ressha-hen" after "... San no Sara" or
-// "Shingeki no Kyojin Season 3 Part 2". On aniworld.to both halves are usually one season.
-function continues(title, prequelTitle) {
-    const t = String(title || "").toLowerCase().trim()
-    const p = String(prequelTitle || "").toLowerCase().trim()
-    if (!t || !p) return false
-    if (/\b(?:part|cour)\s*\d+\b|\b\d+\s*(?:st|nd|rd|th)\s+cour\b/i.test(t)) return true
-    const st = seasonInTitle(title), sp = seasonInTitle(prequelTitle)
-    if (st && sp) return st === sp
-    // Longer version of a title that already names its season ("X: San no Sara" -> "X: San no Sara - Y").
-    // "X" -> "X: Ni no Sara" is a new season: the shorter title has no season name.
-    return t.length > p.length && t.startsWith(p) && /[:：]/.test(p)
+// Does this AniList TV entry carry on the season of the one before it (second cour)?
+// "X Season 3 Part 2" after "X Season 3", "X: San no Sara - Tootsuki Ressha-hen" after "X: San no Sara"
+function carriesOn(title, before) {
+    const a = String(title || "").toLowerCase().trim()
+    const b = String(before || "").toLowerCase().trim()
+    if (!a || !b) return false
+    if (/\b(?:part|cour)\s*\d+\b|\b\d+\s*(?:st|nd|rd|th)\s+cour\b/.test(a)) return true
+    const sa = titleSeason(title)
+    const sb = titleSeason(before)
+    if (sa && sb) return sa === sb
+    // "X: Name" -> "X: Name - More" carries on, "X" -> "X: Name" is a new season
+    return a.length > b.length && a.startsWith(b) && /[:：]/.test(b)
 }
 
-const chainCache = {}
+// ---------------------------------------------------------------- AniList
 
-// From the AniList prequel chain: which season this anime is (TV seasons before it, a movie in
-// between doesn't count, the second half of a season doesn't start a new one) and how many
-// episodes of its season come before it. { season: 0 } when AniList can't be asked.
-async function seasonFromAniList(mediaId) {
-    if (!mediaId) return { season: 0, offset: 0, abs: -1, eps: 0 }
-    if (chainCache[mediaId]) return chainCache[mediaId]
-    const query = "query ($id: Int) { Media(id: $id, type: ANIME) { id format episodes title { romaji english } " +
+const chains = {}
+
+// Where an AniList TV entry sits in its series:
+//   season: TV seasons up to this one (a second cour doesn't count as a new one)
+//   offset: episodes of the same season before this entry (second cour)
+//   before: TV episodes of all entries before this one, -1 if unknown
+//   episodes: episodes of this entry, 0 if unknown (still airing)
+async function placeInSeries(mediaId) {
+    const none = { season: 0, offset: 0, before: -1, episodes: 0 }
+    if (!mediaId) return none
+    if (chains[mediaId]) return chains[mediaId]
+
+    const query = "query ($id: Int) { Media(id: $id, type: ANIME) { id format episodes title { romaji } " +
         "relations { edges { relationType node { id type format } } } } }"
-    const chain = []
-    const seen = {}
+    const entries = []
+    const visited = {}
     let id = mediaId
     try {
-        for (let hop = 0; hop < 15 && id && !seen[id]; hop++) {
-            seen[id] = true
+        while (id && !visited[id] && entries.length < 20) {
+            visited[id] = true
             const res = await fetch(ANILIST, {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "Accept": "application/json" },
                 body: JSON.stringify({ query: query, variables: { id: id } }),
             })
-            const data = await res.json()
-            const media = data && data.data && data.data.Media
+            const json = await res.json()
+            const media = json && json.data && json.data.Media
             if (!media) break
-            chain.push(media)
-            const prequel = ((media.relations && media.relations.edges) || [])
+            entries.push(media)
+            const prequels = ((media.relations && media.relations.edges) || [])
                 .filter((e) => e && e.relationType === "PREQUEL" && e.node && e.node.type === "ANIME")
                 .map((e) => e.node)
-            // Prefer a TV prequel, a movie between two seasons doesn't count
-            const next = prequel.filter((n) => SEASON_FORMATS[n.format])[0] || prequel[0]
+            // Through a movie if there is no TV prequel, the movie itself isn't counted
+            const next = prequels.find((n) => TV[n.format]) || prequels[0]
             id = next ? next.id : 0
         }
     }
     catch (e) {
-        return { season: 0, offset: 0, abs: -1, eps: 0 }
+        return none
     }
-    if (!chain.length) return { season: 0, offset: 0, abs: -1, eps: 0 }
-    // Oldest first, only TV seasons
-    const tv = chain.filter((m) => SEASON_FORMATS[m.format]).reverse()
+    if (!entries.length) return none
+
+    const series = entries.filter((m) => TV[m.format]).reverse()
     let season = 0
     let offset = 0
-    let prev = null
-    tv.forEach((m) => {
-        const title = (m.title && m.title.romaji) || ""
-        if (prev && continues(title, (prev.title && prev.title.romaji) || "")) offset += prev.episodes || 0
+    let before = 0
+    series.forEach((m, i) => {
+        const prev = series[i - 1]
+        if (prev && carriesOn(m.title && m.title.romaji, prev.title && prev.title.romaji)) offset += prev.episodes || 0
         else {
             season++
             offset = 0
         }
-        prev = m
+        if (i < series.length - 1) before = before >= 0 && m.episodes ? before + m.episodes : -1
     })
-    // Episodes of all TV anime before this one (-1 if one of them has no episode count)
-    let abs = 0
-    tv.slice(0, -1).forEach((m) => { abs = abs < 0 || !m.episodes ? -1 : abs + m.episodes })
-    const out = { season: season || 1, offset: offset, abs: abs, eps: chain[0].episodes || 0 }
-    chainCache[mediaId] = out
+    const place = { season: season || 1, offset: offset, before: before, episodes: entries[0].episodes || 0 }
+    chains[mediaId] = place
+    return place
+}
+
+// ---------------------------------------------------------------- aniworld.to pages
+
+const pages = {}
+
+async function page(url) {
+    const hit = pages[url]
+    if (hit && Date.now() - hit.at < PAGE_TTL) return hit.html
+    const res = await fetch(url, { headers: { "User-Agent": UA, "Referer": SITE + "/" } })
+    const html = await res.text()
+    if (res.status && res.status >= 400) throw new Error(`AniWorld antwortet mit HTTP ${res.status} (${url}).`)
+    pages[url] = { at: Date.now(), html: html }
+    return html
+}
+
+// Staffel number -> page url, from a show page
+function seasonLinks(showHtml, slug) {
+    const links = {}
+    const re = new RegExp(`href="(/anime/stream/${escapeRe(slug)}/staffel-(\\d+))"`, "g")
+    let m
+    while ((m = re.exec(showHtml)) !== null) {
+        const n = parseInt(m[2], 10)
+        if (n > 0 && !links[n]) links[n] = SITE + m[1]
+    }
+    return links
+}
+
+// Episodes on a Staffel page, in order: [{ url, number }]
+function episodeLinks(html, slug, season) {
+    const out = []
+    const seen = {}
+    const re = new RegExp(`href="(/anime/stream/${escapeRe(slug)}/staffel-${season}/episode-(\\d+))"`, "g")
+    let m
+    while ((m = re.exec(html)) !== null) {
+        if (seen[m[1]]) continue
+        seen[m[1]] = true
+        out.push({ url: SITE + m[1], number: parseInt(m[2], 10) })
+    }
+    return out.sort((a, b) => a.number - b.number)
+}
+
+function movieLinks(html, slug) {
+    const out = []
+    const seen = {}
+    const re = new RegExp(`href="(/anime/stream/${escapeRe(slug)}/filme/film-(\\d+))"`, "g")
+    let m
+    while ((m = re.exec(html)) !== null) {
+        if (seen[m[1]]) continue
+        seen[m[1]] = true
+        out.push({ url: SITE + m[1], number: parseInt(m[2], 10) })
+    }
+    return out.sort((a, b) => a.number - b.number)
+}
+
+function escapeRe(s) {
+    return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+}
+
+// Hoster links on an episode page: [{ lang, hoster, target }]
+function hosterLinks(html) {
+    const out = []
+    String(html).split(/<li\b/).slice(1).forEach((block) => {
+        const head = block.slice(0, block.indexOf(">") + 1)
+        const lang = (head.match(/data-lang-key="(\d+)"/) || [])[1]
+        const target = (head.match(/data-link-target="([^"]+)"/) || [])[1]
+        if (!lang || !target) return
+        const hoster = (block.match(/<h4>\s*([^<]+?)\s*<\/h4>/) || block.match(/class="icon\s+([A-Za-z0-9]+)"/) || [])[1] || ""
+        out.push({ lang: lang, hoster: hoster.trim(), target: target.startsWith("http") ? target : SITE + target })
+    })
     return out
 }
 
-class Provider {
-    constructor() {
-        this.base = "https://aniworld.to"
-    }
+// ---------------------------------------------------------------- VidMoly
 
+function findM3u8(html, origin) {
+    const m = html.match(/sources\s*:\s*\[\s*\{\s*file\s*:\s*["']([^"']+)["']/) ||
+        html.match(/file\s*:\s*["']([^"']+\.m3u8[^"']*)["']/) ||
+        html.match(/["'](https?:\/\/[^"']+\.m3u8[^"']*)["']/)
+    if (!m) return ""
+    const u = m[1].trim()
+    if (u.startsWith("//")) return "https:" + u
+    if (u.startsWith("/")) return origin + u
+    return u
+}
+
+// aniworld.to redirect link -> { url, headers } of the HLS stream
+async function vidmolyStream(target) {
+    const hop = await fetch(target, { headers: { "User-Agent": UA, "Referer": SITE + "/" } })
+    let html = await hop.text()
+    let embed = String(hop.url || "")
+    if (!/vidmoly/i.test(embed)) {
+        const m = html.match(/https?:\/\/(?:www\.)?vidmoly\.[a-z]+\/(?:embed-|w\/)[A-Za-z0-9_-]+(?:\.html)?/i)
+        embed = m ? m[0] : ""
+    }
+    const originMatch = embed.match(/^https?:\/\/[^/]+/)
+    const origin = originMatch ? originMatch[0] : "https://vidmoly.net"
+    const code = (embed.match(/\/(?:embed-|w\/)([A-Za-z0-9_-]+)/) || [])[1] || ""
+    // The stream only plays with VidMoly as Referer, so Seanime gets these headers to send along
+    const headers = { "User-Agent": UA, "Referer": origin + "/", "Origin": origin }
+
+    let url = findM3u8(html, origin)
+    if (!url && code) {
+        // Embed page behind a Cloudflare check: the cookie skips it
+        const embedUrl = `${origin}/embed-${code}.html`
+        const res = await fetch(embedUrl, {
+            headers: Object.assign({}, headers, {
+                "Referer": embedUrl,
+                "Cookie": `cf_turnstile_demo_pass_${code}=1`,
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            }),
+        })
+        html = await res.text()
+        url = findM3u8(html, origin)
+    }
+    return url ? { url: url, headers: headers } : null
+}
+
+// ---------------------------------------------------------------- ids
+// Search result id: "<slug>|s:2|o:12|b:170|e:12|dub" or "<slug>|movie|dub"
+// b: AniList TV episodes before this entry (missing if unknown), e: its episodes (missing if unknown)
+
+function makeId(slug, info) {
+    const parts = [slug]
+    if (info.movie) parts.push("movie")
+    else {
+        if (info.season > 1) parts.push("s:" + info.season)
+        if (info.offset > 0) parts.push("o:" + info.offset)
+        if (info.before >= 0) parts.push("b:" + info.before)
+        if (info.before >= 0 && info.episodes > 0) parts.push("e:" + info.episodes)
+    }
+    if (info.dub) parts.push("dub")
+    return parts.join("|")
+}
+
+function readId(id) {
+    const parts = String(id).split("|")
+    const num = (key, missing) => {
+        const p = parts.find((x) => x.startsWith(key + ":"))
+        return p ? parseInt(p.slice(key.length + 1), 10) || 0 : (missing || 0)
+    }
+    return {
+        slug: parts[0],
+        movie: parts.indexOf("movie") >= 0,
+        dub: parts.indexOf("dub") >= 0,
+        season: num("s") || 1,
+        offset: num("o"),
+        before: num("b", -1),
+        episodes: num("e"),
+    }
+}
+
+// ---------------------------------------------------------------- provider
+
+class Provider {
     getSettings() {
         return {
             episodeServers: ["VidMoly"],
@@ -159,282 +307,145 @@ class Provider {
         }
     }
 
-    async searchSite(keyword) {
-        const res = await fetch(`${this.base}/ajax/search`, {
+    async lookup(keyword) {
+        const res = await fetch(`${SITE}/ajax/search`, {
             method: "POST",
             headers: {
+                "User-Agent": UA,
                 "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
                 "X-Requested-With": "XMLHttpRequest",
-                "Referer": `${this.base}/`,
+                "Referer": SITE + "/",
             },
-            body: `keyword=${encodeURIComponent(keyword)}`,
+            body: "keyword=" + encodeURIComponent(keyword),
         })
-        const text = await res.text()
-        if (!text || text.startsWith("<!DOCTYPE")) return []
-        let data
-        try { data = JSON.parse(text) } catch (e) { return [] }
-        if (!Array.isArray(data)) return []
-        return data.filter((item) => item && item.link && item.link.startsWith("/anime/stream/"))
+        let list
+        try { list = JSON.parse(await res.text()) } catch (e) { return [] }
+        if (!Array.isArray(list)) return []
+        const shows = []
+        list.forEach((item) => {
+            const m = item && String(item.link || "").match(/^\/anime\/stream\/([^/?#]+)\/?$/)
+            if (!m || shows.some((s) => s.slug === m[1])) return
+            const title = String(item.title || "").replace(/<[^>]*>/g, "").replace(/&#8230;/g, "...").replace(/&amp;/g, "&").trim()
+            shows.push({ slug: m[1], title: title || m[1] })
+        })
+        return shows
     }
 
-    // { season, offset }: offset = episodes of the same season on aniworld.to before this anime
-    async season(query) {
+    // Season, offset and episode count for the search result id
+    async placeOf(query) {
         const media = query.media || {}
-        let s = seasonInTitle(query.query)
-        if (!s) {
-            const titles = [media.englishTitle, media.romajiTitle].concat(media.synonyms || [])
-            for (const t of titles) {
-                s = seasonInTitle(t)
-                if (s) break
+        let season = titleSeason(query.query)
+        if (!season) {
+            for (const t of [media.romajiTitle, media.englishTitle].concat(media.synonyms || [])) {
+                season = titleSeason(t)
+                if (season) break
             }
         }
-        let chain = { season: 0, offset: 0, abs: -1, eps: 0 }
-        if (SEASON_FORMATS[media.format]) chain = await seasonFromAniList(media.id)
-        // A season in the title higher than AniList's count: the prequel chain is incomplete,
-        // so its episode count is too
-        const abs = s && s > chain.season ? -1 : chain.abs
-        // A season in the title wins, the offset still comes from AniList
-        return { season: s || chain.season || 1, offset: chain.offset || 0, abs: abs, eps: chain.eps || 0 }
+        const place = TV[media.format] ? await placeInSeries(media.id) : { season: 0, offset: 0, before: -1, episodes: 0 }
+        // Title says a later season than AniList counts: the prequels on AniList are incomplete,
+        // so their episode count is wrong too
+        const before = season && season > place.season ? -1 : place.before
+        return {
+            season: season || place.season || 1,
+            offset: place.offset,
+            before: before,
+            episodes: place.episodes || media.episodeCount || 0,
+        }
     }
 
     async search(query) {
-        try {
-            const media = query.media || {}
-            const isMovie = media.format === "MOVIE" || /\bmovie\b/i.test(query.query)
+        const media = query.media || {}
+        const movie = media.format === "MOVIE"
+        const info = movie ? { movie: true } : await this.placeOf(query)
+        info.dub = !!query.dub
 
-            let suffix = ""
-            if (isMovie) suffix = "|movie"
-            else {
-                const s = await this.season(query)
-                if (s.season > 1 || s.offset > 0) suffix = `|season:${s.season}`
-                if (s.offset > 0) suffix += `|offset:${s.offset}`
-                if (s.abs > 0) suffix += `|abs:${s.abs}` + (s.eps > 0 ? `|eps:${s.eps}` : "")
-            }
-            if (query.dub) suffix += "|dub"
-
-            let items = []
-            for (const q of searchQueries(query.query)) {
-                items = await this.searchSite(q)
-                if (items.length) break
-            }
-
-            return items.map((item) => ({
-                id: item.link.replace("/anime/stream/", "").replace(/\/.*$/, "") + suffix,
-                title: String(item.title || "").replace(/<\/?[^>]+(>|$)/g, "").replace(/&#8230;/g, "..."),
-                url: `${this.base}${item.link}`,
-                subOrDub: query.dub ? "dub" : "sub",
-            }))
+        let shows = []
+        for (const term of searchTerms(query.query)) {
+            try { shows = await this.lookup(term) } catch (e) { shows = [] }
+            if (shows.length) break
         }
-        catch (e) {
-            return []
-        }
-    }
-
-    scrapeEpisodes(html, isDub) {
-        const epRegex = /<tr[^>]*data-episode-id="(\d+)"[^>]*>.*?<meta itemprop="episodeNumber" content="(\d+)".*?<a itemprop="url" href="([^"]+)">/gs
-        const episodes = []
-        let match
-        while ((match = epRegex.exec(html)) !== null) {
-            episodes.push({
-                id: match[1] + (isDub ? "|dub" : ""),
-                title: `Episode ${match[2]}`,
-                number: parseInt(match[2]),
-                url: `${this.base}${match[3]}`,
-            })
-        }
-        return episodes
-    }
-
-    // Episodes abs+1 .. abs+eps counted over all seasons on aniworld.to, numbered from 1.
-    // null when aniworld.to doesn't have that many episodes (then the season number decides).
-    async episodesAfter(showHtml, abs, eps, isDub) {
-        const seasons = {}
-        const re = /href="([^"]+\/staffel-(\d+))"/g
-        let m
-        while ((m = re.exec(showHtml)) !== null) {
-            const n = parseInt(m[2], 10)
-            if (n > 0 && !seasons[n]) seasons[n] = `${this.base}${m[1]}`
-        }
-        const numbers = Object.keys(seasons).map(Number).sort((a, b) => a - b)
-        if (!numbers.length) return null
-        // All season pages at once, one after the other takes too long for long shows
-        const lists = await Promise.all(numbers.map(async (n) => this.scrapeEpisodes(await (await fetch(seasons[n])).text(), isDub)))
-        const all = [].concat.apply([], lists)
-        if (all.length <= abs) return null
-        return all.slice(abs, eps > 0 ? abs + eps : undefined)
-            .map((e, i) => Object.assign({}, e, { number: i + 1, title: `Episode ${i + 1}` }))
+        return shows.map((s) => ({
+            id: makeId(s.slug, info),
+            title: s.title,
+            url: `${SITE}/anime/stream/${s.slug}`,
+            subOrDub: query.dub ? "dub" : "sub",
+        }))
     }
 
     async findEpisodes(id) {
-        const parts = id.split("|")
-        const slug = parts[0]
-        const isMovie = parts.includes("movie")
-        const seasonPart = parts.find((p) => p.startsWith("season:"))
-        const offsetPart = parts.find((p) => p.startsWith("offset:"))
-        const offset = offsetPart ? parseInt(offsetPart.split(":")[1], 10) || 0 : 0
-        const isDub = parts.includes("dub")
-        const num = (key) => {
-            const part = parts.find((p) => p.startsWith(key + ":"))
-            return part ? parseInt(part.split(":")[1], 10) || 0 : 0
+        const q = readId(id)
+        const tag = q.dub ? "|dub" : ""
+        const showUrl = `${SITE}/anime/stream/${q.slug}`
+        const show = await page(showUrl)
+        const toDetails = (list) => list.map((e, i) => ({
+            id: e.url.replace(SITE, "") + tag,
+            number: i + 1,
+            url: e.url,
+            title: `Episode ${i + 1}`,
+        }))
+
+        if (q.movie) {
+            const films = movieLinks(await page(`${showUrl}/filme`), q.slug)
+            if (!films.length) throw new Error(`AniWorld hat keine Filme für "${q.slug}".`)
+            return toDetails(films.slice(0, 1))
         }
 
-        const showUrl = `${this.base}/anime/stream/${slug}`
+        const links = seasonLinks(show, q.slug)
+        const numbers = Object.keys(links).map(Number).sort((a, b) => a - b)
+        if (!numbers.length) throw new Error(`AniWorld hat keine Staffeln für "${q.slug}".`)
+        const seasonEpisodes = async (n) => links[n] ? episodeLinks(await page(links[n]), q.slug, n) : []
 
-        if (seasonPart) {
-            const seasonNumber = parseInt(seasonPart.split(":")[1], 10)
-            const showHtml = await (await fetch(showUrl)).text()
-            const abs = num("abs")
-            if (abs > 0) {
-                const byCount = await this.episodesAfter(showHtml, abs, num("eps"), isDub)
-                if (byCount) return byCount
-            }
-            const seasonUrl = (n) => {
-                const m = showHtml.match(new RegExp(`href="([^"]+\\/staffel-${n})"[^>]*>\\s*${n}\\s*<\\/a>`, "i"))
-                return m ? `${this.base}${m[1]}` : ""
-            }
-            const url = seasonUrl(seasonNumber)
-            // aniworld.to has fewer seasons than AniList: better no episodes than those of season 1
-            if (!url) throw new Error(`AniWorld hat keine Staffel ${seasonNumber} für "${slug}". Wähle die richtige über "Manual match".`)
-            const episodes = this.scrapeEpisodes(await (await fetch(url)).text(), isDub)
-            if (!offset) return episodes
-
-            // Second half of a season (AniList has it as its own anime, numbered from 1 again):
-            // on aniworld.to it usually goes on in the same season, after the first half
-            const later = episodes.filter((e) => e.number > offset)
-            if (later.length) {
-                return later.map((e) => Object.assign({}, e, { number: e.number - offset, title: `Episode ${e.number - offset}` }))
-            }
-            // Here aniworld.to made it its own season
-            const nextUrl = seasonUrl(seasonNumber + 1)
-            if (nextUrl) return this.scrapeEpisodes(await (await fetch(nextUrl)).text(), isDub)
-            throw new Error(`AniWorld hat in Staffel ${seasonNumber} von "${slug}" nur ${episodes.length} Folgen. Wähle die richtige über "Manual match".`)
-        }
-
-        let url = showUrl
-        if (isMovie) {
-            const html = await (await fetch(url)).text()
-            const movieRegex = /href="([^"]+\/filme)"[^>]*>Filme<\/a>/i
-            const match = html.match(movieRegex)
-            if (match) url = `${this.base}${match[1]}`
-            else return [] // No "Filme" section available
-        }
-
-        const res = await fetch(url)
-        const html = await res.text()
-
-        if (!isMovie) return this.scrapeEpisodes(html, isDub)
-
-        // Strict Movie Scraper
-        const movieRowRegex = /<tr[^>]*data-episode-id="(\d+)"[^>]*>.*?<td class="seasonEpisodeTitle"><a href="([^"]+)">\s*<strong>(.*?)<\/strong>\s*(?:-?\s*<span>(.*?)<\/span>)?.*?<i class="icon Vidmoly"/gs
-
-        const allMovies = []
-        let match
-        while ((match = movieRowRegex.exec(html)) !== null) {
-            const [, epId, epUrl, strongTitle, spanTitle] = match
-            const rawSpan = spanTitle || ""
-            const fullTitleText = (strongTitle + " " + rawSpan).toLowerCase()
-
-            // Check if this row is actually a movie/the main feature
-            const isLikelyMovie = fullTitleText.includes("movie") || fullTitleText.includes("film")
-
-            if (isLikelyMovie) {
-                const cleanName = (strongTitle.trim() || rawSpan.trim() || "Movie")
-                    .replace(/\[movie\]/i, "").replace(/\[ova\]/i, "").trim()
-
-                allMovies.push({
-                    id: epId + (isDub ? "|dub" : ""),
-                    title: cleanName,
-                    number: 1,
-                    url: `${this.base}${epUrl}`,
-                })
+        // 1. Count episodes over all Staffeln (Black Clover, Food Wars). Also for a first season:
+        //    Black Clover's first AniList entry has 170 episodes, that is Staffel 1-4 here
+        if (q.before >= 0) {
+            const all = [].concat.apply([], await Promise.all(numbers.map(seasonEpisodes)))
+            if (all.length > q.before) {
+                return toDetails(all.slice(q.before, q.episodes > 0 ? q.before + q.episodes : undefined))
             }
         }
 
-        // Return only the first matching movie entry, or nothing if none found
-        return allMovies.length > 0 ? [allMovies[0]] : []
+        // 2. Season number
+        if (!links[q.season]) {
+            throw new Error(`AniWorld hat keine Staffel ${q.season} für "${q.slug}" (nur ${numbers.join(", ")}). Wähle die richtige über "Manual match".`)
+        }
+        const episodes = await seasonEpisodes(q.season)
+        if (!q.offset) return toDetails(episodes)
+        // Second cour: after the first one in the same Staffel, or the next Staffel
+        if (episodes.length > q.offset) return toDetails(episodes.slice(q.offset))
+        const next = await seasonEpisodes(q.season + 1)
+        if (next.length) return toDetails(next)
+        throw new Error(`AniWorld hat in Staffel ${q.season} von "${q.slug}" nur ${episodes.length} Folgen.`)
     }
 
     async findEpisodeServer(episode, _server) {
-        const res = await fetch(episode.url)
-        const html = await res.text()
+        const dub = String(episode.id).endsWith("|dub")
+        const links = hosterLinks(await page(episode.url))
+        const order = dub ? LANGS.dub : LANGS.sub
+        const candidates = links
+            .filter((l) => /vidmoly/i.test(l.hoster) && order.indexOf(l.lang) >= 0)
+            .sort((a, b) => order.indexOf(a.lang) - order.indexOf(b.lang))
 
-        const isDub = episode.id.includes("|dub")
-        const priority = isDub ? ["1"] : ["3", "1", "2"]
-
-        let redirectUrl = null
-        const liBlocks = html.split(/<li/g)
-
-        for (const key of priority) {
-            for (const block of liBlocks) {
-                if (block.includes(`data-lang-key="${key}"`) && block.toLowerCase().includes("icon vidmoly")) {
-                    const urlMatch = block.match(/data-link-target="([^"]+)"/)
-                    if (urlMatch) {
-                        redirectUrl = `${this.base}${urlMatch[1]}`
-                        break
-                    }
-                }
-            }
-            if (redirectUrl) break
-        }
-
-        if (!redirectUrl) {
-            // Say what aniworld.to does have, so it's clear whether dub/sub or the hoster is missing
-            const LANG = { "1": "Deutsch", "2": "Englisch (UT)", "3": "Deutsch (UT)" }
+        if (!candidates.length) {
             const have = []
-            liBlocks.forEach((block) => {
-                const lang = (block.match(/data-lang-key="(\d+)"/) || [])[1]
-                const hoster = (block.match(/icon\s+([A-Za-z0-9]+)/) || [])[1]
-                const label = hoster && lang ? `${hoster} ${LANG[lang] || lang}` : ""
-                if (label && have.indexOf(label) < 0) have.push(label)
+            links.forEach((l) => {
+                const label = `${l.hoster || "?"} ${LANG_NAMES[l.lang] || l.lang}`
+                if (have.indexOf(label) < 0) have.push(label)
             })
-            throw new Error((isDub ? "Für diese Folge gibt es auf AniWorld keinen deutschen Dub bei VidMoly." : "Für diese Folge gibt es auf AniWorld keinen VidMoly-Stream.") +
+            throw new Error((dub ? "Kein deutscher Dub bei VidMoly für diese Folge." : "Kein VidMoly-Stream für diese Folge.") +
                 (have.length ? " Vorhanden: " + have.join(", ") : " AniWorld listet keine Streams dafür."))
         }
 
-        // VidMoly: the stream only plays with VidMoly as Referer. Without it the player in
-        // Seanime keeps loading forever (that is why the original AniWorld provider is marked
-        // "Broken"). Its embed page also sits behind a Cloudflare check, the cookie skips it.
-        const hop = await fetch(redirectUrl, { headers: { "User-Agent": UA, "Referer": `${this.base}/` } })
-        let embed = String(hop.url || "")
-        let hosterHtml = await hop.text()
-        if (!/vidmoly/i.test(embed)) {
-            const m = hosterHtml.match(/https?:\/\/(?:www\.)?vidmoly\.[a-z]+\/(?:embed-|w\/)[A-Za-z0-9_-]+(?:\.html)?/i)
-            if (m) embed = m[0]
+        for (const c of candidates) {
+            let stream = null
+            try { stream = await vidmolyStream(c.target) } catch (e) { stream = null }
+            if (stream) {
+                return {
+                    server: "VidMoly",
+                    headers: stream.headers,
+                    videoSources: [{ url: stream.url, type: "m3u8", quality: "auto", subtitles: [] }],
+                }
+            }
         }
-        const originMatch = embed.match(/^https?:\/\/[^/]+/)
-        const origin = originMatch && /vidmoly/i.test(originMatch[0]) ? originMatch[0] : "https://vidmoly.net"
-        const idMatch = embed.match(/\/(?:embed-|w\/)([A-Za-z0-9_-]+)/)
-        const embedId = idMatch ? idMatch[1] : ""
-        const playHeaders = { "User-Agent": UA, "Referer": `${origin}/`, "Origin": origin }
-
-        const findM3u8 = (html) => {
-            const m = html.match(/sources\s*:\s*\[\s*\{\s*file\s*:\s*["']([^"']+)["']/) ||
-                html.match(/file\s*:\s*["'](https?:\/\/[^"']+\/master\.m3u8[^"']*)["']/) ||
-                html.match(/["'](https?:\/\/[^"']+\.m3u8[^"']*)["']/)
-            if (!m) return ""
-            const u = m[1].trim()
-            return u.startsWith("//") ? "https:" + u : (u.startsWith("/") ? origin + u : u)
-        }
-
-        let videoUrl = findM3u8(hosterHtml)
-        if (!videoUrl && embedId) {
-            const embedUrl = `${origin}/embed-${embedId}.html`
-            const res = await fetch(embedUrl, {
-                headers: Object.assign({}, playHeaders, {
-                    "Referer": embedUrl,
-                    "Cookie": `cf_turnstile_demo_pass_${embedId}=1`,
-                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                }),
-            })
-            hosterHtml = await res.text()
-            videoUrl = findM3u8(hosterHtml)
-        }
-        if (!videoUrl) throw new Error("VidMoly hat keinen Stream geliefert (Seite geändert oder Cloudflare-Prüfung).")
-
-        return {
-            server: "VidMoly",
-            headers: playHeaders,
-            videoSources: [{ url: videoUrl, quality: "auto", type: "hls" }],
-        }
+        throw new Error("VidMoly hat keinen Stream geliefert (Seite geändert oder Cloudflare-Prüfung).")
     }
 }

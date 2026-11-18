@@ -1,13 +1,13 @@
 {
-  "id": "aniworld-fixed",
-  "name": "AniWorld",
-  "description": "AniWorld is an online streaming provider for german dubs.",
+  "id": "aniworld-de",
+  "name": "AniWorld DE",
+  "description": "Deutsche Dubs und Subs von aniworld.to, abgespielt über VidMoly. Findet die richtige Staffel auch bei langen Serien.",
   "manifestURI": "https://raw.githubusercontent.com/vikTempest/vikTempest-Seanime-UI/main/providers/aniworld/manifest.json",
-  "version": "1.5.3",
-  "author": "Pal, vikTempest",
+  "version": "2.0.0",
+  "author": "vikTempest",
   "type": "onlinestream-provider",
   "language": "javascript",
   "lang": "de",
-  "icon": "https://raw.githubusercontent.com/Pal-droid/Seanime-Providers/main/public/aniworld.png",
+  "icon": "https://aniworld.to/favicon.ico",
   "payloadURI": "https://raw.githubusercontent.com/vikTempest/vikTempest-Seanime-UI/main/providers/aniworld/provider.js"
 }
