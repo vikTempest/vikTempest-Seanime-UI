@@ -20,6 +20,7 @@
 // (without the season marker, without the part after ":", the first words).
 
 const ANILIST = "https://graphql.anilist.co"
+const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36"
 const SEASON_FORMATS = { TV: true, TV_SHORT: true }
 const ROMAN = { II: 2, III: 3, IV: 4, V: 5, VI: 6, VII: 7, VIII: 8, IX: 9, X: 10 }
 
@@ -349,17 +350,49 @@ class Provider {
                 (have.length ? " Vorhanden: " + have.join(", ") : " AniWorld listet keine Streams dafür."))
         }
 
-        const hosterRes = await fetch(redirectUrl)
-        const hosterHtml = await hosterRes.text()
+        // VidMoly: the stream only plays with VidMoly as Referer. Without it the player in
+        // Seanime keeps loading forever (that is why the original AniWorld provider is marked
+        // "Broken"). Its embed page also sits behind a Cloudflare check, the cookie skips it.
+        const hop = await fetch(redirectUrl, { headers: { "User-Agent": UA, "Referer": `${this.base}/` } })
+        let embed = String(hop.url || "")
+        let hosterHtml = await hop.text()
+        if (!/vidmoly/i.test(embed)) {
+            const m = hosterHtml.match(/https?:\/\/(?:www\.)?vidmoly\.[a-z]+\/(?:embed-|w\/)[A-Za-z0-9_-]+(?:\.html)?/i)
+            if (m) embed = m[0]
+        }
+        const originMatch = embed.match(/^https?:\/\/[^/]+/)
+        const origin = originMatch && /vidmoly/i.test(originMatch[0]) ? originMatch[0] : "https://vidmoly.net"
+        const idMatch = embed.match(/\/(?:embed-|w\/)([A-Za-z0-9_-]+)/)
+        const embedId = idMatch ? idMatch[1] : ""
+        const playHeaders = { "User-Agent": UA, "Referer": `${origin}/`, "Origin": origin }
 
-        const m3u8Regex = /file\s*:\s*["'](https?:\/\/[^"']+\/master\.m3u8[^"']*)["']/
-        const fileMatch = hosterHtml.match(m3u8Regex)
+        const findM3u8 = (html) => {
+            const m = html.match(/sources\s*:\s*\[\s*\{\s*file\s*:\s*["']([^"']+)["']/) ||
+                html.match(/file\s*:\s*["'](https?:\/\/[^"']+\/master\.m3u8[^"']*)["']/) ||
+                html.match(/["'](https?:\/\/[^"']+\.m3u8[^"']*)["']/)
+            if (!m) return ""
+            const u = m[1].trim()
+            return u.startsWith("//") ? "https:" + u : (u.startsWith("/") ? origin + u : u)
+        }
 
-        const videoUrl = fileMatch ? fileMatch[1] : (hosterHtml.match(/["'](https?:\/\/[^"']+\.m3u8[^"']*)["']/)?.[1])
-        if (!videoUrl) throw new Error("M3U8 not found.")
+        let videoUrl = findM3u8(hosterHtml)
+        if (!videoUrl && embedId) {
+            const embedUrl = `${origin}/embed-${embedId}.html`
+            const res = await fetch(embedUrl, {
+                headers: Object.assign({}, playHeaders, {
+                    "Referer": embedUrl,
+                    "Cookie": `cf_turnstile_demo_pass_${embedId}=1`,
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                }),
+            })
+            hosterHtml = await res.text()
+            videoUrl = findM3u8(hosterHtml)
+        }
+        if (!videoUrl) throw new Error("VidMoly hat keinen Stream geliefert (Seite geändert oder Cloudflare-Prüfung).")
 
         return {
             server: "VidMoly",
+            headers: playHeaders,
             videoSources: [{ url: videoUrl, quality: "auto", type: "hls" }],
         }
     }
