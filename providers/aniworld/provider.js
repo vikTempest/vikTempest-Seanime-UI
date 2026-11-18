@@ -14,6 +14,8 @@
 //   1. the title: "Season 2", "2nd Season", "Staffel 2", "II" at the end
 //   2. the other titles of the anime (synonyms) with the same patterns
 //   3. AniList: the number of TV seasons before this one (prequel chain)
+// The second half of a season (its own anime on AniList, e.g. "Shokugeki no Souma: San no Sara -
+// Tootsuki Ressha-hen") gets the episodes after the first half of that season on aniworld.to.
 // and the search on aniworld.to tries shorter titles when the full one finds nothing
 // (without the season marker, without the part after ":", the first words).
 
@@ -65,20 +67,36 @@ function searchQueries(title) {
     return out
 }
 
-const seasonCache = {}
+// A TV entry that continues the season before it instead of starting a new one, e.g.
+// "Shokugeki no Souma: San no Sara - Tootsuki Ressha-hen" after "... San no Sara" or
+// "Shingeki no Kyojin Season 3 Part 2". On aniworld.to both halves are usually one season.
+function continues(title, prequelTitle) {
+    const t = String(title || "").toLowerCase().trim()
+    const p = String(prequelTitle || "").toLowerCase().trim()
+    if (!t || !p) return false
+    if (/\b(?:part|cour)\s*\d+\b|\b\d+\s*(?:st|nd|rd|th)\s+cour\b/i.test(t)) return true
+    const st = seasonInTitle(title), sp = seasonInTitle(prequelTitle)
+    if (st && sp) return st === sp
+    // Longer version of a title that already names its season ("X: San no Sara" -> "X: San no Sara - Y").
+    // "X" -> "X: Ni no Sara" is a new season: the shorter title has no season name.
+    return t.length > p.length && t.startsWith(p) && /[:：]/.test(p)
+}
 
-// How many TV seasons come before this anime on AniList (following "Prequel"), plus one.
-// 0 when AniList can't be asked.
+const chainCache = {}
+
+// From the AniList prequel chain: which season this anime is (TV seasons before it, a movie in
+// between doesn't count, the second half of a season doesn't start a new one) and how many
+// episodes of its season come before it. { season: 0 } when AniList can't be asked.
 async function seasonFromAniList(mediaId) {
-    if (!mediaId) return 0
-    if (seasonCache[mediaId] !== undefined) return seasonCache[mediaId]
-    const query = "query ($id: Int) { Media(id: $id, type: ANIME) { id format " +
+    if (!mediaId) return { season: 0, offset: 0 }
+    if (chainCache[mediaId]) return chainCache[mediaId]
+    const query = "query ($id: Int) { Media(id: $id, type: ANIME) { id format episodes title { romaji english } " +
         "relations { edges { relationType node { id type format } } } } }"
-    let id = mediaId
-    let count = 1
+    const chain = []
     const seen = {}
+    let id = mediaId
     try {
-        for (let hop = 0; hop < 12 && id && !seen[id]; hop++) {
+        for (let hop = 0; hop < 15 && id && !seen[id]; hop++) {
             seen[id] = true
             const res = await fetch(ANILIST, {
                 method: "POST",
@@ -88,22 +106,36 @@ async function seasonFromAniList(mediaId) {
             const data = await res.json()
             const media = data && data.data && data.data.Media
             if (!media) break
+            chain.push(media)
             const prequel = ((media.relations && media.relations.edges) || [])
                 .filter((e) => e && e.relationType === "PREQUEL" && e.node && e.node.type === "ANIME")
                 .map((e) => e.node)
             // Prefer a TV prequel, a movie between two seasons doesn't count
             const next = prequel.filter((n) => SEASON_FORMATS[n.format])[0] || prequel[0]
-            if (!next) break
-            if (SEASON_FORMATS[next.format]) count++
-            id = next.id
+            id = next ? next.id : 0
         }
     }
     catch (e) {
-        seasonCache[mediaId] = 0
-        return 0
+        return { season: 0, offset: 0 }
     }
-    seasonCache[mediaId] = count
-    return count
+    if (!chain.length) return { season: 0, offset: 0 }
+    // Oldest first, only TV seasons
+    const tv = chain.filter((m) => SEASON_FORMATS[m.format]).reverse()
+    let season = 0
+    let offset = 0
+    let prev = null
+    tv.forEach((m) => {
+        const title = (m.title && m.title.romaji) || ""
+        if (prev && continues(title, (prev.title && prev.title.romaji) || "")) offset += prev.episodes || 0
+        else {
+            season++
+            offset = 0
+        }
+        prev = m
+    })
+    const out = { season: season || 1, offset: offset }
+    chainCache[mediaId] = out
+    return out
 }
 
 class Provider {
@@ -136,6 +168,7 @@ class Provider {
         return data.filter((item) => item && item.link && item.link.startsWith("/anime/stream/"))
     }
 
+    // { season, offset }: offset = episodes of the same season on aniworld.to before this anime
     async season(query) {
         const media = query.media || {}
         let s = seasonInTitle(query.query)
@@ -146,8 +179,10 @@ class Provider {
                 if (s) break
             }
         }
-        if (!s && SEASON_FORMATS[media.format]) s = await seasonFromAniList(media.id)
-        return s || 1
+        let chain = { season: 0, offset: 0 }
+        if (SEASON_FORMATS[media.format]) chain = await seasonFromAniList(media.id)
+        // A season in the title wins, the offset still comes from AniList
+        return { season: s || chain.season || 1, offset: chain.offset || 0 }
     }
 
     async search(query) {
@@ -159,7 +194,8 @@ class Provider {
             if (isMovie) suffix = "|movie"
             else {
                 const s = await this.season(query)
-                if (s > 1) suffix = `|season:${s}`
+                if (s.season > 1 || s.offset > 0) suffix = `|season:${s.season}`
+                if (s.offset > 0) suffix += `|offset:${s.offset}`
             }
             if (query.dub) suffix += "|dub"
 
@@ -181,72 +217,7 @@ class Provider {
         }
     }
 
-    async findEpisodes(id) {
-        const parts = id.split("|")
-        const slug = parts[0]
-        const isMovie = parts.includes("movie")
-        const seasonPart = parts.find((p) => p.startsWith("season:"))
-        const isDub = parts.includes("dub")
-
-        let url = `${this.base}/anime/stream/${slug}`
-
-        // 1. Resolve correct sub-page
-        if (isMovie || seasonPart) {
-            const res = await fetch(url)
-            const html = await res.text()
-
-            if (seasonPart) {
-                const seasonNumber = seasonPart.split(":")[1]
-                const seasonRegex = new RegExp(`href="([^"]+\\/staffel-${seasonNumber})"[^>]*>\\s*${seasonNumber}\\s*<\\/a>`, "i")
-                const match = html.match(seasonRegex)
-                if (match) url = `${this.base}${match[1]}`
-                // aniworld.to has fewer seasons than AniList (e.g. two cours in one season):
-                // better no episodes than the episodes of season 1
-                else throw new Error(`AniWorld has no season ${seasonNumber} for "${slug}". Use "Manual match" to pick it.`)
-            }
-            else if (isMovie) {
-                const movieRegex = /href="([^"]+\/filme)"[^>]*>Filme<\/a>/i
-                const match = html.match(movieRegex)
-                if (match) url = `${this.base}${match[1]}`
-                else return [] // No "Filme" section available
-            }
-        }
-
-        const res = await fetch(url)
-        const html = await res.text()
-
-        if (isMovie) {
-            // 2. Strict Movie Scraper
-            const movieRowRegex = /<tr[^>]*data-episode-id="(\d+)"[^>]*>.*?<td class="seasonEpisodeTitle"><a href="([^"]+)">\s*<strong>(.*?)<\/strong>\s*(?:-?\s*<span>(.*?)<\/span>)?.*?<i class="icon Vidmoly"/gs
-
-            const allMovies = []
-            let match
-            while ((match = movieRowRegex.exec(html)) !== null) {
-                const [, epId, epUrl, strongTitle, spanTitle] = match
-                const rawSpan = spanTitle || ""
-                const fullTitleText = (strongTitle + " " + rawSpan).toLowerCase()
-
-                // Check if this row is actually a movie/the main feature
-                const isLikelyMovie = fullTitleText.includes("movie") || fullTitleText.includes("film")
-
-                if (isLikelyMovie) {
-                    const cleanName = (strongTitle.trim() || rawSpan.trim() || "Movie")
-                        .replace(/\[movie\]/i, "").replace(/\[ova\]/i, "").trim()
-
-                    allMovies.push({
-                        id: epId + (isDub ? "|dub" : ""),
-                        title: cleanName,
-                        number: 1,
-                        url: `${this.base}${epUrl}`,
-                    })
-                }
-            }
-
-            // Return only the first matching movie entry, or nothing if none found
-            return allMovies.length > 0 ? [allMovies[0]] : []
-        }
-
-        // 3. Standard Episode Scraper
+    scrapeEpisodes(html, isDub) {
         const epRegex = /<tr[^>]*data-episode-id="(\d+)"[^>]*>.*?<meta itemprop="episodeNumber" content="(\d+)".*?<a itemprop="url" href="([^"]+)">/gs
         const episodes = []
         let match
@@ -259,6 +230,86 @@ class Provider {
             })
         }
         return episodes
+    }
+
+    async findEpisodes(id) {
+        const parts = id.split("|")
+        const slug = parts[0]
+        const isMovie = parts.includes("movie")
+        const seasonPart = parts.find((p) => p.startsWith("season:"))
+        const offsetPart = parts.find((p) => p.startsWith("offset:"))
+        const offset = offsetPart ? parseInt(offsetPart.split(":")[1], 10) || 0 : 0
+        const isDub = parts.includes("dub")
+
+        const showUrl = `${this.base}/anime/stream/${slug}`
+
+        if (seasonPart) {
+            const seasonNumber = parseInt(seasonPart.split(":")[1], 10)
+            const showHtml = await (await fetch(showUrl)).text()
+            const seasonUrl = (n) => {
+                const m = showHtml.match(new RegExp(`href="([^"]+\\/staffel-${n})"[^>]*>\\s*${n}\\s*<\\/a>`, "i"))
+                return m ? `${this.base}${m[1]}` : ""
+            }
+            const url = seasonUrl(seasonNumber)
+            // aniworld.to has fewer seasons than AniList: better no episodes than those of season 1
+            if (!url) throw new Error(`AniWorld hat keine Staffel ${seasonNumber} für "${slug}". Wähle die richtige über "Manual match".`)
+            const episodes = this.scrapeEpisodes(await (await fetch(url)).text(), isDub)
+            if (!offset) return episodes
+
+            // Second half of a season (AniList has it as its own anime, numbered from 1 again):
+            // on aniworld.to it usually goes on in the same season, after the first half
+            const later = episodes.filter((e) => e.number > offset)
+            if (later.length) {
+                return later.map((e) => Object.assign({}, e, { number: e.number - offset, title: `Episode ${e.number - offset}` }))
+            }
+            // Here aniworld.to made it its own season
+            const nextUrl = seasonUrl(seasonNumber + 1)
+            if (nextUrl) return this.scrapeEpisodes(await (await fetch(nextUrl)).text(), isDub)
+            throw new Error(`AniWorld hat in Staffel ${seasonNumber} von "${slug}" nur ${episodes.length} Folgen. Wähle die richtige über "Manual match".`)
+        }
+
+        let url = showUrl
+        if (isMovie) {
+            const html = await (await fetch(url)).text()
+            const movieRegex = /href="([^"]+\/filme)"[^>]*>Filme<\/a>/i
+            const match = html.match(movieRegex)
+            if (match) url = `${this.base}${match[1]}`
+            else return [] // No "Filme" section available
+        }
+
+        const res = await fetch(url)
+        const html = await res.text()
+
+        if (!isMovie) return this.scrapeEpisodes(html, isDub)
+
+        // Strict Movie Scraper
+        const movieRowRegex = /<tr[^>]*data-episode-id="(\d+)"[^>]*>.*?<td class="seasonEpisodeTitle"><a href="([^"]+)">\s*<strong>(.*?)<\/strong>\s*(?:-?\s*<span>(.*?)<\/span>)?.*?<i class="icon Vidmoly"/gs
+
+        const allMovies = []
+        let match
+        while ((match = movieRowRegex.exec(html)) !== null) {
+            const [, epId, epUrl, strongTitle, spanTitle] = match
+            const rawSpan = spanTitle || ""
+            const fullTitleText = (strongTitle + " " + rawSpan).toLowerCase()
+
+            // Check if this row is actually a movie/the main feature
+            const isLikelyMovie = fullTitleText.includes("movie") || fullTitleText.includes("film")
+
+            if (isLikelyMovie) {
+                const cleanName = (strongTitle.trim() || rawSpan.trim() || "Movie")
+                    .replace(/\[movie\]/i, "").replace(/\[ova\]/i, "").trim()
+
+                allMovies.push({
+                    id: epId + (isDub ? "|dub" : ""),
+                    title: cleanName,
+                    number: 1,
+                    url: `${this.base}${epUrl}`,
+                })
+            }
+        }
+
+        // Return only the first matching movie entry, or nothing if none found
+        return allMovies.length > 0 ? [allMovies[0]] : []
     }
 
     async findEpisodeServer(episode, _server) {
@@ -285,9 +336,17 @@ class Provider {
         }
 
         if (!redirectUrl) {
-            throw new Error(isDub
-                ? "No German dub on VidMoly for this episode. Try without \"Dubbed\"."
-                : "No VidMoly stream for this episode.")
+            // Say what aniworld.to does have, so it's clear whether dub/sub or the hoster is missing
+            const LANG = { "1": "Deutsch", "2": "Englisch (UT)", "3": "Deutsch (UT)" }
+            const have = []
+            liBlocks.forEach((block) => {
+                const lang = (block.match(/data-lang-key="(\d+)"/) || [])[1]
+                const hoster = (block.match(/icon\s+([A-Za-z0-9]+)/) || [])[1]
+                const label = hoster && lang ? `${hoster} ${LANG[lang] || lang}` : ""
+                if (label && have.indexOf(label) < 0) have.push(label)
+            })
+            throw new Error((isDub ? "Für diese Folge gibt es auf AniWorld keinen deutschen Dub bei VidMoly." : "Für diese Folge gibt es auf AniWorld keinen VidMoly-Stream.") +
+                (have.length ? " Vorhanden: " + have.join(", ") : " AniWorld listet keine Streams dafür."))
         }
 
         const hosterRes = await fetch(redirectUrl)

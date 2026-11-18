@@ -32,7 +32,7 @@ Beim ersten Start passieren zwei Dinge:
 
 Der AniWorld-Provider aus dem Marketplace (1.2.0) öffnet eine spätere Staffel nur, wenn im Titel „Season 2“ steht. Bei Titeln wie „2nd Season“, „Mushoku Tensei II“ oder „Kimetsu no Yaiba: Yuukaku-hen“ zeigt er die Folgen von Staffel 1 oder findet nichts, und Seanime meldet ein Problem mit dem Provider.
 
-**AniWorld (VikTempest)** findet die Staffel auch dann: aus dem Titel („Season 2“, „2nd Season“, „Staffel 2“, „II“), aus den anderen Titeln des Anime und sonst über AniList (wie viele TV-Staffeln vorher kommen). Findet die Suche mit dem ganzen Titel nichts, versucht sie kürzere. Folgen und Streams lädt er wie das Original (VidMoly).
+**AniWorld (VikTempest)** findet die Staffel auch dann: aus dem Titel („Season 2“, „2nd Season“, „Staffel 2“, „II“), aus den anderen Titeln des Anime und sonst über AniList (wie viele TV-Staffeln vorher kommen). Findet die Suche mit dem ganzen Titel nichts, versucht sie kürzere. Ist ein Anime auf AniList nur die zweite Hälfte einer Staffel (z. B. Food Wars „San no Sara – Tootsuki Ressha-hen“), nimmt er auf AniWorld die Folgen hinter der ersten Hälfte. Fehlt der Stream, steht in der Fehlermeldung, welche Hoster und Sprachen AniWorld für die Folge hat. Folgen und Streams lädt er wie das Original (VidMoly).
 
 Installieren: unter **Extensions** → „Add extensions“ → „Install from URL“:
 
