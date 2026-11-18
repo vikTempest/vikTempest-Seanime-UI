@@ -1,6 +1,6 @@
 /// <reference path="./online-streaming-provider.d.ts" />
 
-// AniWorld (VikTempest): online streaming provider for aniworld.to (German dub and sub).
+// AniWorld (fixed version, same id "aniworld" as the original): online streaming provider for aniworld.to (German dub and sub).
 //
 // Based on "AniWorld" 1.2.0 by Pal (Seanime-contributions/Seanime-Providers). The scraping of
 // episodes and streams is unchanged. What is new is how the right season is found:
