@@ -52,8 +52,13 @@ async function fetchStub(url, opts) {
         searches.push(kw)
         return { text: async () => JSON.stringify(site[kw] || []) }
     }
+    if (url === "https://aniworld.to/r/vm") return { url: "https://vidmoly.net/w/abc123", text: async () => "<html>Checking your browser</html>" }
+    if (url === "https://vidmoly.net/embed-abc123.html") {
+        const ok = opts && opts.headers && opts.headers.Cookie === "cf_turnstile_demo_pass_abc123=1"
+        return { url, text: async () => ok ? "player.setup({ sources: [{file:'https://cdn.vmeas.cloud/hls/xyz/master.m3u8'}] })" : "" }
+    }
     const path = url.replace("https://aniworld.to", "")
-    return { text: async () => pages[path] || "" }
+    return { url, text: async () => pages[path] || "" }
 }
 
 const sandbox = { fetch: fetchStub, console }
@@ -129,6 +134,12 @@ async function check(name, fn) {
     await check("no VidMoly: the error says which streams exist", async () => {
         pages["/ep"] = '<li data-lang-key="1" data-link-target="/r/1"><i class="icon VOE" title="Hoster VOE"></i></li><li data-lang-key="3" data-link-target="/r/2"><i class="icon Filemoon"></i></li>'
         await assert.rejects(() => p.findEpisodeServer({ id: "1|dub", url: "https://aniworld.to/ep" }, "default"), /Vorhanden: VOE Deutsch, Filemoon Deutsch \(UT\)/)
+    })
+    await check("VidMoly: stream with VidMoly as Referer, past the Cloudflare page", async () => {
+        pages["/ep2"] = '<li data-lang-key="1" data-link-target="/r/vm"><i class="icon Vidmoly"></i></li>'
+        const r = await p.findEpisodeServer({ id: "1|dub", url: "https://aniworld.to/ep2" }, "default")
+        assert.strictEqual(r.videoSources[0].url, "https://cdn.vmeas.cloud/hls/xyz/master.m3u8")
+        assert.strictEqual(r.headers.Referer, "https://vidmoly.net/")
     })
     console.log(failures ? "\n" + failures + " failed" : "\nall passed")
     process.exitCode = failures ? 1 : 0
