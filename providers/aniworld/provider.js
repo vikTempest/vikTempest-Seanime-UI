@@ -15,6 +15,10 @@
 //   1. the title: "Season 2", "2nd Season", "Staffel 2", "II" at the end
 //   2. the other titles of the anime (synonyms) with the same patterns
 //   3. AniList: the number of TV seasons before this one (prequel chain)
+// Long shows are cut into seasons differently: AniList has Black Clover as one anime with 170
+// episodes, aniworld.to as Staffel 1-4. So when AniList knows all episodes before this anime,
+// that count decides: anime with 170 episodes before it = aniworld.to episode 171 onwards,
+// in whichever Staffel that is. The season number above is only the fallback.
 // The second half of a season (its own anime on AniList, e.g. "Shokugeki no Souma: San no Sara -
 // Tootsuki Ressha-hen") gets the episodes after the first half of that season on aniworld.to.
 // and the search on aniworld.to tries shorter titles when the full one finds nothing
@@ -90,7 +94,7 @@ const chainCache = {}
 // between doesn't count, the second half of a season doesn't start a new one) and how many
 // episodes of its season come before it. { season: 0 } when AniList can't be asked.
 async function seasonFromAniList(mediaId) {
-    if (!mediaId) return { season: 0, offset: 0 }
+    if (!mediaId) return { season: 0, offset: 0, abs: -1, eps: 0 }
     if (chainCache[mediaId]) return chainCache[mediaId]
     const query = "query ($id: Int) { Media(id: $id, type: ANIME) { id format episodes title { romaji english } " +
         "relations { edges { relationType node { id type format } } } } }"
@@ -118,9 +122,9 @@ async function seasonFromAniList(mediaId) {
         }
     }
     catch (e) {
-        return { season: 0, offset: 0 }
+        return { season: 0, offset: 0, abs: -1, eps: 0 }
     }
-    if (!chain.length) return { season: 0, offset: 0 }
+    if (!chain.length) return { season: 0, offset: 0, abs: -1, eps: 0 }
     // Oldest first, only TV seasons
     const tv = chain.filter((m) => SEASON_FORMATS[m.format]).reverse()
     let season = 0
@@ -135,7 +139,10 @@ async function seasonFromAniList(mediaId) {
         }
         prev = m
     })
-    const out = { season: season || 1, offset: offset }
+    // Episodes of all TV anime before this one (-1 if one of them has no episode count)
+    let abs = 0
+    tv.slice(0, -1).forEach((m) => { abs = abs < 0 || !m.episodes ? -1 : abs + m.episodes })
+    const out = { season: season || 1, offset: offset, abs: abs, eps: chain[0].episodes || 0 }
     chainCache[mediaId] = out
     return out
 }
@@ -181,10 +188,13 @@ class Provider {
                 if (s) break
             }
         }
-        let chain = { season: 0, offset: 0 }
+        let chain = { season: 0, offset: 0, abs: -1, eps: 0 }
         if (SEASON_FORMATS[media.format]) chain = await seasonFromAniList(media.id)
+        // A season in the title higher than AniList's count: the prequel chain is incomplete,
+        // so its episode count is too
+        const abs = s && s > chain.season ? -1 : chain.abs
         // A season in the title wins, the offset still comes from AniList
-        return { season: s || chain.season || 1, offset: chain.offset || 0 }
+        return { season: s || chain.season || 1, offset: chain.offset || 0, abs: abs, eps: chain.eps || 0 }
     }
 
     async search(query) {
@@ -198,6 +208,7 @@ class Provider {
                 const s = await this.season(query)
                 if (s.season > 1 || s.offset > 0) suffix = `|season:${s.season}`
                 if (s.offset > 0) suffix += `|offset:${s.offset}`
+                if (s.abs > 0) suffix += `|abs:${s.abs}` + (s.eps > 0 ? `|eps:${s.eps}` : "")
             }
             if (query.dub) suffix += "|dub"
 
@@ -234,6 +245,26 @@ class Provider {
         return episodes
     }
 
+    // Episodes abs+1 .. abs+eps counted over all seasons on aniworld.to, numbered from 1.
+    // null when aniworld.to doesn't have that many episodes (then the season number decides).
+    async episodesAfter(showHtml, abs, eps, isDub) {
+        const seasons = {}
+        const re = /href="([^"]+\/staffel-(\d+))"/g
+        let m
+        while ((m = re.exec(showHtml)) !== null) {
+            const n = parseInt(m[2], 10)
+            if (n > 0 && !seasons[n]) seasons[n] = `${this.base}${m[1]}`
+        }
+        const numbers = Object.keys(seasons).map(Number).sort((a, b) => a - b)
+        if (!numbers.length) return null
+        // All season pages at once, one after the other takes too long for long shows
+        const lists = await Promise.all(numbers.map(async (n) => this.scrapeEpisodes(await (await fetch(seasons[n])).text(), isDub)))
+        const all = [].concat.apply([], lists)
+        if (all.length <= abs) return null
+        return all.slice(abs, eps > 0 ? abs + eps : undefined)
+            .map((e, i) => Object.assign({}, e, { number: i + 1, title: `Episode ${i + 1}` }))
+    }
+
     async findEpisodes(id) {
         const parts = id.split("|")
         const slug = parts[0]
@@ -242,12 +273,21 @@ class Provider {
         const offsetPart = parts.find((p) => p.startsWith("offset:"))
         const offset = offsetPart ? parseInt(offsetPart.split(":")[1], 10) || 0 : 0
         const isDub = parts.includes("dub")
+        const num = (key) => {
+            const part = parts.find((p) => p.startsWith(key + ":"))
+            return part ? parseInt(part.split(":")[1], 10) || 0 : 0
+        }
 
         const showUrl = `${this.base}/anime/stream/${slug}`
 
         if (seasonPart) {
             const seasonNumber = parseInt(seasonPart.split(":")[1], 10)
             const showHtml = await (await fetch(showUrl)).text()
+            const abs = num("abs")
+            if (abs > 0) {
+                const byCount = await this.episodesAfter(showHtml, abs, num("eps"), isDub)
+                if (byCount) return byCount
+            }
             const seasonUrl = (n) => {
                 const m = showHtml.match(new RegExp(`href="([^"]+\\/staffel-${n})"[^>]*>\\s*${n}\\s*<\\/a>`, "i"))
                 return m ? `${this.base}${m[1]}` : ""

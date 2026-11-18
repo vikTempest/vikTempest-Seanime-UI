@@ -20,19 +20,36 @@ const anilist = {
     202: tv("Shokugeki no Souma: San no Sara", 12, 201),
     203: tv("Shokugeki no Souma: San no Sara - Tootsuki Ressha-hen", 12, 202),
     204: tv("Shokugeki no Souma: Shin no Sara", 12, 203),
+    300: tv("Black Clover", 170, 0),
+    301: { format: "MOVIE", title: "Black Clover: Mahou Tei no Ken", episodes: 1, prequel: { id: 300, format: "TV" } },
+    302: tv("Black Clover Season 2", null, 0),
 }
+anilist[302].prequel = { id: 301, format: "MOVIE" }
 anilist[101].prequel = { id: 102, format: "MOVIE" }
 const site = {
     "Re:Zero kara Hajimeru Isekai Seikatsu": [{ link: "/anime/stream/rezero-starting-life-in-another-world", title: "Re:ZERO" }],
     "Kimetsu no Yaiba": [{ link: "/anime/stream/demon-slayer-kimetsu-no-yaiba", title: "Demon Slayer" }],
     "Shokugeki no": [{ link: "/anime/stream/food-wars-shokugeki-no-sma", title: "Food Wars! Shokugeki no Soma" }],
+    "Black Clover": [{ link: "/anime/stream/black-clover", title: "Black Clover" }],
     "Mushoku Tensei": [{ link: "/anime/stream/mushoku-tensei-jobless-reincarnation", title: "Mushoku Tensei" }],
 }
 const rows = (from, to) => Array.from({ length: to - from + 1 }, (_, i) => `<tr data-episode-id="${900 + from + i}"><meta itemprop="episodeNumber" content="${from + i}"><a itemprop="url" href="/fw/episode-${from + i}"></tr>`).join("")
 const pages = {
     "/anime/stream/food-wars-shokugeki-no-sma": [1, 2, 3, 4, 5].map((n) => `<a href="/anime/stream/food-wars-shokugeki-no-sma/staffel-${n}">${n}</a>`).join(""),
+    "/anime/stream/food-wars-shokugeki-no-sma/staffel-1": rows(1, 24),
+    "/anime/stream/food-wars-shokugeki-no-sma/staffel-2": rows(1, 13),
     "/anime/stream/food-wars-shokugeki-no-sma/staffel-3": rows(1, 24),
     "/anime/stream/food-wars-shokugeki-no-sma/staffel-4": rows(1, 12),
+    "/anime/stream/food-wars-shokugeki-no-sma/staffel-5": rows(1, 13),
+    // Black Clover: AniList has 170 episodes as one anime, aniworld.to Staffel 1-4 (51/51/52/16)
+    // and the new season as Staffel 5
+    "/anime/stream/black-clover": [1, 2, 3, 4, 5].map((n) => `<a href="/anime/stream/black-clover/staffel-${n}">${n}</a>`).join("") +
+        '<a href="/anime/stream/black-clover/filme">Filme</a>',
+    "/anime/stream/black-clover/staffel-1": rows(1, 51).replace(/\/fw\//g, "/bc1/"),
+    "/anime/stream/black-clover/staffel-2": rows(1, 51).replace(/\/fw\//g, "/bc2/"),
+    "/anime/stream/black-clover/staffel-3": rows(1, 52).replace(/\/fw\//g, "/bc3/"),
+    "/anime/stream/black-clover/staffel-4": rows(1, 16).replace(/\/fw\//g, "/bc4/"),
+    "/anime/stream/black-clover/staffel-5": rows(1, 3).replace(/\/fw\//g, "/bc5/"),
     "/anime/stream/short-show": '<a href="/anime/stream/short-show/staffel-1">1</a><a href="/anime/stream/short-show/staffel-2">2</a>',
     "/anime/stream/short-show/staffel-1": rows(1, 12),
     "/anime/stream/short-show/staffel-2": rows(1, 10),
@@ -92,7 +109,7 @@ async function check(name, fn) {
     })
     await check("arc name: season from AniList, movie in between not counted", async () => {
         const r = await p.search({ query: "Kimetsu no Yaiba: Yuukaku-hen", dub: false, media: { id: 103, format: "TV", synonyms: [] } })
-        assert.strictEqual(r[0].id, "demon-slayer-kimetsu-no-yaiba|season:3")
+        assert.strictEqual(r[0].id, "demon-slayer-kimetsu-no-yaiba|season:3|abs:33|eps:11")
     })
     await check("roman numeral and subtitle", async () => {
         const r = await p.search({ query: "Mushoku Tensei II: Isekai Ittara Honki Dasu", dub: false, media: { id: 1, format: "TV", synonyms: [] } })
@@ -112,11 +129,14 @@ async function check(name, fn) {
     })
     await check("Food Wars San no Sara: season 3", async () => {
         const r = await p.search({ query: "Shokugeki no Souma: San no Sara", dub: true, media: { id: 202, format: "TV", synonyms: [] } })
-        assert.strictEqual(r[0].id, "food-wars-shokugeki-no-sma|season:3|dub")
+        assert.strictEqual(r[0].id, "food-wars-shokugeki-no-sma|season:3|abs:37|eps:12|dub")
+        const eps = await p.findEpisodes(r[0].id)
+        assert.strictEqual(eps.length, 12)
+        assert.strictEqual(eps[0].url, "https://aniworld.to/fw/episode-1")
     })
     await check("Food Wars Tootsuki Ressha-hen: second half of season 3", async () => {
         const r = await p.search({ query: "Shokugeki no Souma: San no Sara - Tootsuki Ressha-hen", dub: true, media: { id: 203, format: "TV", synonyms: [] } })
-        assert.strictEqual(r[0].id, "food-wars-shokugeki-no-sma|season:3|offset:12|dub")
+        assert.strictEqual(r[0].id, "food-wars-shokugeki-no-sma|season:3|offset:12|abs:49|eps:12|dub")
         const eps = await p.findEpisodes(r[0].id)
         assert.strictEqual(eps.length, 12)
         assert.strictEqual(eps[0].number, 1)
@@ -124,7 +144,22 @@ async function check(name, fn) {
     })
     await check("Food Wars Shin no Sara: season 4", async () => {
         const r = await p.search({ query: "Shokugeki no Souma: Shin no Sara", dub: false, media: { id: 204, format: "TV", synonyms: [] } })
-        assert.strictEqual(r[0].id, "food-wars-shokugeki-no-sma|season:4")
+        assert.strictEqual(r[0].id, "food-wars-shokugeki-no-sma|season:4|abs:61|eps:12")
+        const eps = await p.findEpisodes(r[0].id)
+        assert.strictEqual(eps.length, 12)
+        assert.strictEqual(eps[0].number, 1)
+    })
+    await check("Black Clover new season: episode 171 = Staffel 5, not Staffel 2", async () => {
+        const r = await p.search({ query: "Black Clover Season 2", dub: false, media: { id: 302, format: "TV", synonyms: [] } })
+        assert.strictEqual(r[0].id, "black-clover|season:2|abs:170")
+        const eps = await p.findEpisodes(r[0].id)
+        assert.strictEqual(eps.length, 3)
+        assert.strictEqual(eps[0].number, 1)
+        assert.strictEqual(eps[0].url, "https://aniworld.to/bc5/episode-1")
+    })
+    await check("episode count beyond aniworld.to: falls back to the season number", async () => {
+        const eps = await p.findEpisodes("food-wars-shokugeki-no-sma|season:4|abs:500")
+        assert.strictEqual(eps.length, 12)
     })
     await check("second half that is its own season on AniWorld", async () => {
         const eps = await p.findEpisodes("short-show|season:1|offset:12")
