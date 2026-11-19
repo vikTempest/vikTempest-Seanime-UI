@@ -30,9 +30,11 @@ Beim ersten Start passieren zwei Dinge:
 
 ## AniWorld-Provider
 
-Der AniWorld-Provider aus dem Marketplace (1.2.0) öffnet eine spätere Staffel nur, wenn im Titel „Season 2“ steht. Bei Titeln wie „2nd Season“, „Mushoku Tensei II“ oder „Kimetsu no Yaiba: Yuukaku-hen“ zeigt er die Folgen von Staffel 1 oder findet nichts, und Seanime meldet ein Problem mit dem Provider.
+„AniWorld DE“ ist ein eigener, neu geschriebener Provider für aniworld.to (deutscher Dub und Sub, Stream über VidMoly).
 
-Der Provider ist von **Pal** ([Pal-droid/Seanime-Providers](https://github.com/Pal-droid/Seanime-Providers)), ihm gehört der Code und die Anerkennung. Hier liegt nur eine Kopie mit Korrekturen, bis sie in seiner Version sind. Sie heißt ebenfalls „AniWorld“ (Autor „Pal, vikTempest“), hat aber eine eigene ID (`aniworld-fixed`): Mit der ID des Originals würde Seanime sie als „Broken“ markieren und Updates aus Pals Repo statt aus diesem holen. Sie findet die Staffel auch dann: aus dem Titel („Season 2“, „2nd Season“, „Staffel 2“, „II“), aus den anderen Titeln des Anime und sonst über AniList (wie viele TV-Staffeln vorher kommen). Findet die Suche mit dem ganzen Titel nichts, versucht sie kürzere. Ist ein Anime auf AniList nur die zweite Hälfte einer Staffel (z. B. Food Wars „San no Sara – Tootsuki Ressha-hen“), nimmt er auf AniWorld die Folgen hinter der ersten Hälfte. Den VidMoly-Stream lädt er mit VidMoly als Referer (ohne den lädt der Player endlos, deshalb steht das Original im Marketplace auf „Broken“). Fehlt der Stream, steht in der Fehlermeldung, welche Hoster und Sprachen AniWorld für die Folge hat. Folgen und Streams lädt er wie das Original (VidMoly).
+- **Richtige Staffel:** AniList und AniWorld teilen Serien oft verschieden auf. Black Clover ist auf AniList ein Anime mit 170 Folgen, auf AniWorld Staffel 1 bis 4. Darum zählt der Provider über AniList die Folgen aller Staffeln davor und nimmt ab der passenden Folge die Episoden auf AniWorld, egal in welcher Staffel sie dort liegen. Geht das nicht, entscheidet die Staffelnummer aus dem Titel („Season 2“, „2nd Season“, „II“, „Staffel 2“) oder aus AniList.
+- **Zweite Hälfte einer Staffel** (z. B. Food Wars „San no Sara – Tootsuki Ressha-hen“) bekommt die Folgen hinter der ersten Hälfte.
+- **Stream:** VidMoly mit dem nötigen Referer, sonst lädt der Player endlos. Fehlt VidMoly, sagt die Fehlermeldung, welche Hoster und Sprachen AniWorld für die Folge hat.
 
 Installieren: unter **Extensions** → „Add extensions“ → „Install from URL“:
 
@@ -40,7 +42,7 @@ Installieren: unter **Extensions** → „Add extensions“ → „Install from 
 https://raw.githubusercontent.com/vikTempest/vikTempest-Seanime-UI/main/providers/aniworld/manifest.json
 ```
 
-Vorher unter **Extensions** das bisherige „AniWorld“ aus dem Marketplace deinstallieren, damit nur eins in der Provider-Auswahl steht. Danach beim Stream „AniWorld“ wählen. Auf der Karte unter Extensions steht die Version (aktuell 1.5.3) und „Pal, vikTempest“ als Autor; Updates kommen über „Update“ aus diesem Repo. Passt eine Staffel trotzdem nicht, hilft „Manual match“ beim Stream: dort z. B. „Re:Zero Season 2“ suchen.
+Vorher alle anderen AniWorld-Einträge unter **Extensions** deinstallieren. Danach beim Stream „AniWorld DE“ wählen. Passt eine Staffel trotzdem nicht, hilft „Manual match“ beim Stream.
 
 ## Einstellungen
 
